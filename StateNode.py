@@ -14,8 +14,8 @@ class StateNode(ABC):
     
     def __init__(self):
         '''
-            data: Union[str, dict]  If str, it should be a serialized JSON string.
-                                    If dict, it should be a dictionary (used for initialization of the state)
+            This shouldn't be overridden by the child class, or directly called upon.
+            Use `load_from_serialized` or `load_from_dict` instead.
         '''
         self.parents: Set[StateNode] = set()
         self.children: Set[StateNode] = set()
@@ -23,16 +23,25 @@ class StateNode(ABC):
         self._notified: bool = False
     
     def serialize(self):
+        '''
+        This method serializes the state of the node to a JSON string.
+        '''
         self.validate_state()
         return self.state.model_dump_json()
 
     def validate_state(self):
+        '''
+        This method validates the state of the node. Throws ValidationError if the state is invalid.
+        '''
         self.state.model_validate(self.state.dict())
         
     def process_wrapper(self):
-        print(f"  Processing {self.__class__.__name__}")
+        '''
+        This method is called by the StateGraph to process the node. It should not be overridden by the child class.
+        '''
+        # print(f"  Processing {self.__class__.__name__}")
         if not self._notified:
-            print(f"    Skipping as it was not notified")
+            # print(f"    Skipping as it was not notified")
             return
         # Copy the state to check if it has changed
         state_copy = self.state.model_copy(deep=True)
@@ -42,18 +51,24 @@ class StateNode(ABC):
         if self.state != state_copy and len(self.children) > 0:
             # Notify children as their parent has changed
             self.notify_children()
-            print(f"    Notified children")
+            # print(f"    Notified children")
         # Reset notified flag
         self._notified = False
         # Validate the state
         self.validate_state()
     
     def notify_children(self):
+        '''
+        Notifies all the children of the node that they should be processed.
+        '''
         for child in self.children:
             child._notified = True
     
     T = TypeVar('T')
     def get_ancestor(self, cls: T) -> T:
+        '''
+        This method returns the first ancestor of the node that is of the type `cls`.
+        '''
         queue = deque()
         queue.extend(self.parents)
         visited = set()
@@ -69,12 +84,18 @@ class StateNode(ABC):
     
     @classmethod
     def load_from_serialized(cls, serialized_data: str):
+        '''
+        Loads the node from a serialized JSON string.
+        '''
         node = cls()
         node.state = node.State.model_validate_json(serialized_data)
         return node
     
     @classmethod
     def load_from_dict(cls, data: dict):
+        '''
+        Loads the node from a dictionary.
+        '''
         node = cls()
         node.state = node.State.model_validate(data)
         return node
@@ -82,6 +103,6 @@ class StateNode(ABC):
     @abstractmethod
     def process(self):
         '''
-        This method is called by self.process_wrapper() method. This method should be implemented by the child class.
+        This method should be implemented by the child class. This method is called by self.process_wrapper() method.
         '''
         raise NotImplementedError("process() method is not implemented")

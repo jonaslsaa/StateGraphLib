@@ -13,6 +13,9 @@ class StateGraph:
         self.nodes: Set[StateNode] = set()
     
     def mark_as_roots(self, nodes: Union[StateNode, List[StateNode]]):
+        '''
+        Mark the nodes as roots of the graph. This will also add the nodes to the graph.
+        '''
         if isinstance(nodes, StateNode):
             nodes = [nodes]
         for node in nodes:
@@ -28,6 +31,12 @@ class StateGraph:
         return self
     
     def connect(self, parent: StateNode, child: StateNode, allow_cycle: bool = False):
+        '''
+        Connect the parent node to the child node directed edge). This will also add the nodes to the graph.
+        parent: The parent node
+        child: The child node
+        allow_cycle: If True, the connection will be made even if it creates a cycle. Default is False. Never if the parent is a root node.
+        '''
         assert parent is not child, "Parent and child cannot be the same"
         
         # Check if this addition will create a cycle
@@ -77,16 +86,23 @@ class StateGraph:
             self._count_layers(child, layer_number + 1, node_to_layer_number)
     
     def notify_roots(self):
+        '''
+        Notifies all the root nodes that they should be processed.
+        '''
         for root in self.roots:
             root._notified = True
         return self
     
     def process(self, maximum_cycle_calls: int = 2):
+        '''
+        Process the graph. This will process the nodes in the order of their layers.
+        maximum_cycle_calls: The maximum number of times a node can be called in a cycle. Default is 2. Raises an error if the limit is exceeded.
+        '''
         node_to_layer_number = self._build_graph()
         node_to_call_count = defaultdict(int)
         # Process the nodes in layers
         for node in sorted(self.nodes, key=lambda x: node_to_layer_number[x]):
-            print(f"On Layer {node_to_layer_number[node]}")
+            # print(f"On Layer {node_to_layer_number[node]}")
             node.process_wrapper()
             node_to_call_count[node] += 1
             if node_to_call_count[node] > maximum_cycle_calls:
