@@ -43,9 +43,7 @@ class StateNode(ABC):
         Call this method to process the node. Notifies children if the state has changed, and validates the state.
         It should not be overridden by the child class.
         '''
-        # print(f"  Processing {self.__class__.__name__}")
         if not self._notified:
-            # print(f"    Skipping as it was not notified")
             return
         # Copy the state to check if it has changed
         state_copy = self._state.model_copy(deep=True)
@@ -54,8 +52,7 @@ class StateNode(ABC):
         # Check if the state has changed
         if self._state != state_copy and len(self._children) > 0:
             # Notify children as their parent has changed
-            self.notify_children()
-            # print(f"    Notified children")
+            self._notify_children()
         # Reset notified flag
         self._notified = False
         # Validate the state
@@ -64,12 +61,19 @@ class StateNode(ABC):
     def _notify(self):
         self._notified = True
     
-    def notify_children(self):
+    def _notify_children(self):
         '''
         Notifies all the children of the node indicating that a dependent state has changed. Marks them to be processed.
         '''
         for child in self._children:
             child._notify()
+    
+    def apply_change(self):
+        '''
+        This method should be called when the state of the node has been manually changed. It notifies children and validates the state.
+        '''
+        self._notify_children()
+        self.validate_state()
     
     T = TypeVar('T')
     def get_ancestors(self, cls: T, return_only_first: bool = False) -> Union[T, List[T]]:

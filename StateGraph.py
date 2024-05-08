@@ -38,15 +38,6 @@ def nodeset_get_notified(nodes: Set[StateNode]):
     '''
     return {node for node in nodes if node._notified}
 
-def nodeset_get_children(nodes: Set[StateNode]):
-    '''
-    Returns a set of children of the nodes.
-    '''
-    children = set()
-    for node in nodes:
-        children.update(node._children)
-    return children
-
 class StateGraph:
     def __init__(self):
         self.nodes: Set[StateNode] = set()
@@ -84,39 +75,27 @@ class StateGraph:
                 return True
         return False
 
-    def _find_roots(self):
-        roots = set()
-        for node in self.nodes:
-            if len(node._parents) == 0:
-                roots.add(node)
-        return roots
-    
     def notify_all(self):
         '''
         Notifies all nodes. This is useful when initializing a new graph.
         '''
-        for root in self._find_roots():
+        for root in self.nodes:
             root._notify()
         return self
-    
-    def _layer_depth(self, node: StateNode, visited: Set[StateNode], depth: int):
-        if node in visited:
-            return depth
-        visited.add(node)
-        max_depth = depth
-        for child in node._children:
-            max_depth = max(max_depth, self._layer_depth(child, visited, depth + 1))
-        return max_depth
         
     def next_batch(self):
-        '''
-        Returns the next batch of nodes that can be processed, these nodes will not be dependent on each other.
-        '''
-        all_notified = nodeset_get_notified(self.nodes)
-        
-        # For each node, find highest notified ancestor
-        highest_notified = set()
-        for node in all_notified:
-            highest_notified.update(highest_notified_ancestors(node))
-        
-        return highest_notified
+            '''
+            Returns the next batch of nodes that can be processed, these nodes will not be dependent on each other (can be processed in parallel).
+            It will find the highest non-dependent notified nodes and return them. This ensures that changes are propagated in the correct order, parent nodes are processed before children.
+            
+            Returns:
+                set: A set of nodes that can be processed in parallel without dependencies.
+            '''
+            all_notified = nodeset_get_notified(self.nodes)
+            
+            # For each node, find highest notified ancestor
+            highest_notified = set()
+            for node in all_notified:
+                highest_notified.update(highest_notified_ancestors(node))
+            
+            return highest_notified

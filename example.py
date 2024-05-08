@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from StateGraph import StateGraph
 from StateNode import StateNode
 
+from pprint import pprint
 
 class TicketNode(StateNode):
     class State(BaseModel):
@@ -12,7 +13,7 @@ class TicketNode(StateNode):
 
     def on_notify(self):
         # This node doesn't do anything on notify, onl
-        self.notify_children() # Notify children to process
+        self._notify_children() # Notify children to process
 
 class WeatherNode(StateNode):
     class State(BaseModel):
@@ -51,10 +52,10 @@ class FactsNode(StateNode):
             self.state().feeling = 'sad'
 
 
-from pprint import pprint
-
 def run_graph(graph: StateGraph):
     it = 0
+    # Get the next batch of nodes to process, these can be processed in parallel
+    # We need to call next_batch after each batch is processed to get the new nodes to process
     while batch := graph.next_batch():
         print(f"  Batch {it}")
         for node in batch:
@@ -63,51 +64,50 @@ def run_graph(graph: StateGraph):
         it += 1
 
 if __name__ == '__main__':
-    # Create a graph and process it
-    # Ticket node and Weather node are the roots
-    # Facts node is the child
+    # We can create nodes with initial states
+    # Let's create two root nodes, TicketNode and WeatherNode and a FactsNode derived from them
     
-    # There three ways to initialize root nodes, by setting the state directly with either `load_from_dict`, 'load_from_serialized', or `from_defaults`
+    # There are three ways to initialize root nodes,
+    # by setting the state directly with either `load_from_dict`, 'load_from_serialized', or `from_defaults`
+    
     ticket_node = TicketNode.load_from_dict({'content': 'Hello, can you help me?'})
     weather_node = WeatherNode.from_defaults()
     facts_node = FactsNode.from_defaults()
     
-    print("* Initial state:")
+    # Let's see the initial state of the facts node
     pprint(facts_node.state())
     
-    print("\n* Initializing graph")
-    # Let's create a graph and connect the root nodes to the child node
+    
+    # Now let's create a graph and connect the root nodes to the child node
     graph = StateGraph()                    \
         .connect(ticket_node, facts_node)   \
         .connect(weather_node, facts_node)
     
-    # As this is a new graph, we need to notify all nodes
+    # As this is a new graph, we need to notify all nodes to process
+    # This is because the graph is not stable yet and all nodes need to be processed
     graph.notify_all()
     
-    
-    print("\n* Processing graph")
-    # Process the graph
+    # We can now process the graph by calling `process` on the nodes given by `next_batch`
+    # `next_batch` returns a set of nodes that can be processed in parallel as they are not dependent on each other
+    # `process` will notify children (mark them for processing) if the state has changed (it will also validate the state)
     run_graph(graph)
     
     # Now the graph is stable
-    
-    print("\n* After processing:")
+    # Let's see the state of the facts node
     pprint(facts_node.state())
 
     
-    # Now,
-    # Let's manually change the weather to rainy and process the graph again
+    # You can also manually change state outside the node, let's change the weather to rainy and process the graph again
     weather_node.state().weather = 'rainy'
-    print("\n* Weather changed to rainy")
-    # Notify children that their parent has a changed state
-    weather_node.notify_children() 
+    # Now we need to apply the change to the node, this will notify children and validate the state
+    weather_node.apply_change() 
     # Process the graph
     run_graph(graph)
     
-    print("\n* After processing:")
     pprint(facts_node.state())
     
-    # Now,
+    # We can also serialize and deserialize the nodes, this is done using the `serialize` and `load_from_serialized` methods
+    # These will serialize the state of the node to a JSON string and load the state from the JSON string respectively
     # Let's try to resume a graph based on the serialized data from previous run
     serialized_ticket_node = ticket_node.serialize()
     serialized_facts_node = facts_node.serialize()
@@ -115,6 +115,7 @@ if __name__ == '__main__':
     ticket_node = TicketNode.load_from_serialized(serialized_ticket_node)
     facts_node = FactsNode.load_from_serialized(serialized_facts_node)
     
+    # Perfect, we have the same nodes as before
     print("\n* Resumed state:")
     pprint(ticket_node.state())
     pprint(facts_node.state())
