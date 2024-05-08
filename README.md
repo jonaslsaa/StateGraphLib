@@ -1,6 +1,6 @@
 # StateGraphLib
 
-StateGraphLib is a Python library designed to manage and process stateful nodes within a directed acyclic graph (DAG). It is particularly useful for AI Large Language Model (LLM) generation tasks and other scenarios where the state of a node depends on the states of its ancestor nodes. The library allows for updating node states through external services or AI models, which can be integrated within the node's processing logic.
+StateGraphLib is a minimalistic Python library designed to manage and process stateful nodes within a directed acyclic graph (DAG). It is particularly useful for AI Large Language Model (LLM) generation tasks and other scenarios where the state of a node depends on the states of its ancestor nodes. The library allows for updating node states through external services or AI models, which can be integrated within the node's processing logic.
 
 ## Features
 
@@ -10,7 +10,6 @@ StateGraphLib is a Python library designed to manage and process stateful nodes 
 - **Custom Processing Logic**: Implement custom processing logic within nodes that can interact with AI LLMs or other services.
 - **Cycle Detection**: The library includes cycle detection to prevent the creation of cycles within the graph.
 - **Layered Processing**: Nodes are processed in layers based on their dependencies, ensuring that parent states are updated before their children.
-- **Root Node Notification**: The graph can notify root nodes to start processing, triggering the processing of all connected nodes.
 - **Type Annotations**: Use Pydantic models to define the state of each node, providing type safety and validation.
 
 ## Usage
@@ -18,58 +17,76 @@ StateGraphLib is a Python library designed to manage and process stateful nodes 
 Below is an example of how to use StateGraphLib to create a graph with three types of nodes: `TicketNode`, `WeatherNode`, and `FactsNode`. Each node type has its own state and processing logic.
 
 ```python
-from stategraphlib import StateNode, StateGraph
+from typing import List, Literal, Set, Union
 from pydantic import BaseModel
-from typing import List, Literal
+from StateGraph import StateGraph
+from StateNode import StateNode
+from pprint import pprint
 
-# Define your node classes with custom processing logic
+# Define node classes with custom processing logic
 class TicketNode(StateNode):
     class State(BaseModel):
         content: str
 
-    def process(self):
-        # Custom logic to update the node's state
-        self.notify_children()
+    def on_notify(self):
+        self._notify_children()
 
 class WeatherNode(StateNode):
     class State(BaseModel):
-        weather: Literal['sunny', 'rainy']
+        weather: Union[Literal['sunny', 'rainy'], None] = None
 
-    def process(self):
-        # Custom logic to update the node's state
-        self.state.weather = 'sunny'
+    def on_notify(self):
+        self.state().weather = 'sunny'
 
 class FactsNode(StateNode):
     class State(BaseModel):
-        facts: List[str] = []
+        facts: Set[str] = set()
         feeling: Literal['happy', 'sad', 'neutral'] = 'neutral'
+        
+    @staticmethod
+    def from_defaults():
+        return FactsNode.load_from_dict({'facts': {'There will be facts here!'}})
 
-    def process(self):
-        # Custom logic to update the node's state based on ancestor states
-        ticket_content = self.get_ancestor(TicketNode).state.content
+    def on_notify(self):
+        ticket_content = self.get_ancestor(TicketNode).state().content
         weather_node = self.get_ancestor(WeatherNode)
-        # ... additional processing logic ...
+        self.state().facts.add('User asked a question' if '?' in ticket_content else 'User stated something')
+        self.state().feeling = 'happy' if weather_node.state().weather == 'sunny' else 'sad'
 
-# Create and connect nodes
-ticket_node = TicketNode.load_from_dict({'content': 'Hello, can you help me? :)'})
-weather_node = WeatherNode.load_from_dict({'weather': 'sunny'})
-facts_node = FactsNode.load_from_dict({})
+# Initialize nodes
+ticket_node = TicketNode.load_from_dict({'content': 'Hello, can you help me?'})
+weather_node = WeatherNode.from_defaults()
+facts_node = FactsNode.from_defaults()
 
-# Initialize the graph
+# Create the graph and connect nodes
 graph = StateGraph() \
-    # Mark nodes as roots and connect them
-    .mark_as_roots([ticket_node, weather_node]) \
     .connect(ticket_node, facts_node) \
-    .connect(weather_node, facts_node) \
-    # Manually notify roots that they have new data,
-    # which triggers processing and notification to children
-    .notify_roots() \
-    # Process all nodes in the graph (layer-wise)
-    .process()
+    .connect(weather_node, facts_node)
 
-# Serialize node state
-serialized_facts_node = facts_node.serialize()
+# Notify all nodes to process since the graph is new
+graph.notify_all()
 
-# Deserialize node state
-facts_node = FactsNode.load_from_serialized(serialized_facts_node)
+# Function to process the graph
+def run_graph(graph: StateGraph):
+    iteration = 0
+    while batch := graph.next_batch():
+        print(f"Batch {iteration}")
+        for node in batch:
+            print(f"Processing {node.__class__.__name__}")
+            node.process()
+        iteration += 1
+
+# Run the graph processing
+run_graph(graph)
+
+# Serialize and deserialize node state
+serialized_ticket_node = ticket_node.serialize()
+ticket_node = TicketNode.load_from_serialized(serialized_ticket_node)
+
+# Output the resumed state
+print("\n* Resumed state:")
+pprint(ticket_node.state())
+pprint(facts_node.state())
 ```
+
+See the [example.py](example.py) file for a complete example with additional comments.
