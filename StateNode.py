@@ -7,9 +7,9 @@ from collections import deque
 from common import NodeNotFoundError
 
 class StateNode(ABC):
-    
+
     class State(BaseModel):
-        ''' This class should be implemented by the child class '''
+        ''' Pydantic validation model for the state of the node. This class should be implemented by the child class '''
         pass
     
     def __init__(self):
@@ -17,38 +17,42 @@ class StateNode(ABC):
             This shouldn't be overridden by the child class, or directly called upon.
             Use `load_from_serialized` or `load_from_dict` instead.
         '''
-        self.parents: Set[StateNode] = set()
-        self.children: Set[StateNode] = set()
-        self.state: self.State = None
+        self._parents: Set[StateNode] = set()
+        self._children: Set[StateNode] = set()
+        self._state: self.State = None
         self._notified: bool = False
+    
+    def state(self) -> State:
+        return self._state
     
     def serialize(self):
         '''
         This method serializes the state of the node to a JSON string.
         '''
         self.validate_state()
-        return self.state.model_dump_json()
+        return self._state.model_dump_json()
 
     def validate_state(self):
         '''
         This method validates the state of the node. Throws ValidationError if the state is invalid.
         '''
-        self.state.model_validate(self.state.dict())
+        self._state.model_validate(self._state.dict())
         
-    def process_wrapper(self):
+    def process(self):
         '''
-        This method is called by the StateGraph to process the node. It should not be overridden by the child class.
+        Call this method to process the node. Notifies children if the state has changed, and validates the state.
+        It should not be overridden by the child class.
         '''
         # print(f"  Processing {self.__class__.__name__}")
         if not self._notified:
             # print(f"    Skipping as it was not notified")
             return
         # Copy the state to check if it has changed
-        state_copy = self.state.model_copy(deep=True)
+        state_copy = self._state.model_copy(deep=True)
         # Process, which may change the state
-        self.process()
+        self.on_notify()
         # Check if the state has changed
-        if self.state != state_copy and len(self.children) > 0:
+        if self._state != state_copy and len(self._children) > 0:
             # Notify children as their parent has changed
             self.notify_children()
             # print(f"    Notified children")
@@ -57,20 +61,24 @@ class StateNode(ABC):
         # Validate the state
         self.validate_state()
     
+    def _notify(self):
+        self._notified = True
+    
     def notify_children(self):
         '''
-        Notifies all the children of the node that they should be processed.
+        Notifies all the children of the node indicating that a dependent state has changed. Marks them to be processed.
         '''
-        for child in self.children:
-            child._notified = True
+        for child in self._children:
+            child._notify()
     
     T = TypeVar('T')
-    def get_ancestor(self, cls: T) -> T:
+    def get_ancestors(self, cls: T, return_only_first: bool = False) -> Union[T, List[T]]:
         '''
-        This method returns the first ancestor of the node that is of the type `cls`.
+        This method returns all the ancestors of the node that are of the type `cls`.
         '''
+        ancestors = []
         queue = deque()
-        queue.extend(self.parents)
+        queue.extend(self._parents)
         visited = set()
         while queue:
             node = queue.popleft()
@@ -78,8 +86,19 @@ class StateNode(ABC):
                 continue
             visited.add(node)
             if isinstance(node, cls):
-                return node
-            queue.extend(parent for parent in node.parents if parent not in visited)
+                if return_only_first:
+                    return node
+                ancestors.append(node)
+            queue.extend(parent for parent in node._parents if parent not in visited)
+        return ancestors
+    
+    def get_ancestor(self, cls: T) -> T:
+        '''
+        This method returns the first ancestor of the node that is of the type `cls`.
+        '''
+        ancestor = self.get_ancestors(cls, return_only_first=True)
+        if isinstance(ancestor, cls):
+            return ancestor
         raise NodeNotFoundError(f"Ancestor of type {cls} not found")
     
     @classmethod
@@ -88,7 +107,7 @@ class StateNode(ABC):
         Loads the node from a serialized JSON string.
         '''
         node = cls()
-        node.state = node.State.model_validate_json(serialized_data)
+        node._state = node.State.model_validate_json(serialized_data)
         return node
     
     @classmethod
@@ -97,12 +116,20 @@ class StateNode(ABC):
         Loads the node from a dictionary.
         '''
         node = cls()
-        node.state = node.State.model_validate(data)
+        node._state = node.State.model_validate(data)
         return node
     
+    @classmethod
+    def from_defaults(cls):
+        '''
+        This method can be implemented by the child class. This method should return a new instance of the class with a valid default state. Use `load_from_dict`
+        By default, it returns an instance with empty state - this might fail.
+        '''
+        return cls.load_from_dict({})
+    
     @abstractmethod
-    def process(self):
+    def on_notify(self):
         '''
-        This method should be implemented by the child class. This method is called by self.process_wrapper() method.
+        This method should be implemented by the child class. This method is called by self.process() method and shouldn't be called directly.
         '''
-        raise NotImplementedError("process() method is not implemented")
+        raise NotImplementedError("on_notify() method is not implemented")

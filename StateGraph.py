@@ -7,35 +7,56 @@ from collections import deque
 from StateNode import StateNode
 from common import CycleDetectedError
 
+
+def highest_notified_ancestors(node: StateNode):
+    """
+    Returns a list of the highest notified ancestors of the given node.
+
+    Args:
+        node (StateNode): The node for which to find the highest notified ancestors.
+
+    Returns:
+        list: A list of StateNode objects representing the highest notified ancestors, these are the nodes that have been notified and are the highest in their hierarchy.
+    """
+    notified_dependents = []
+    # For each parent, get the highest notified ancestor
+    for p in node._parents:
+        others = highest_notified_ancestors(p)
+        notified_dependents.extend(others)
+    # If any parent is notified, return the parent as it is the highest notified ancestor
+    if len(notified_dependents) > 0:
+        return notified_dependents
+    # If no parent is notified, return the node if it is notified
+    if node._notified:
+        return [node]
+    # If the node is not notified, return empty
+    return []
+
+def nodeset_get_notified(nodes: Set[StateNode]):
+    '''
+    Returns a set of nodes that have been notified.
+    '''
+    return {node for node in nodes if node._notified}
+
+def nodeset_get_children(nodes: Set[StateNode]):
+    '''
+    Returns a set of children of the nodes.
+    '''
+    children = set()
+    for node in nodes:
+        children.update(node._children)
+    return children
+
 class StateGraph:
     def __init__(self):
-        self.roots: Set[StateNode] = set()
         self.nodes: Set[StateNode] = set()
-    
-    def mark_as_roots(self, nodes: Union[StateNode, List[StateNode]]):
-        '''
-        Mark the nodes as roots of the graph. This will also add the nodes to the graph.
-        '''
-        if isinstance(nodes, StateNode):
-            nodes = [nodes]
-        for node in nodes:
-            # Check if this creates a cycle
-            for other_node in self.nodes:
-                if other_node is node:
-                    continue
-                has_cycle = self._check_cycle(node, other_node, set())
-                if has_cycle:
-                    raise CycleDetectedError("You cannot create a cycle with a root node")
-            self.roots.add(node)
-            self.nodes.add(node)
-        return self
     
     def connect(self, parent: StateNode, child: StateNode, allow_cycle: bool = False):
         '''
         Connect the parent node to the child node directed edge). This will also add the nodes to the graph.
-        parent: The parent node
-        child: The child node
-        allow_cycle: If True, the connection will be made even if it creates a cycle. Default is False. Never if the parent is a root node.
+            parent: The parent node
+            child: The child node
+            allow_cycle: If True, the connection will be made even if it creates a cycle. Default is False. Never if the parent is a root node.
         '''
         assert parent is not child, "Parent and child cannot be the same"
         
@@ -43,12 +64,10 @@ class StateGraph:
         has_cycle = self._check_cycle(parent, child, set())
         if has_cycle and not allow_cycle:
             raise CycleDetectedError("You can allow cycles by setting allow_cycle=True")
-        if has_cycle and parent in self.roots:
-            raise CycleDetectedError("You cannot create a cycle with a root node")
         
         # Connect the nodes
-        parent.children.add(child)
-        child.parents.add(parent)
+        parent._children.add(child)
+        child._parents.add(parent)
         # Add the nodes to the set
         self.nodes.add(parent)
         self.nodes.add(child)
@@ -58,53 +77,46 @@ class StateGraph:
         if parent == child:
             return True
         visited.add(parent)
-        for node in parent.children:
+        for node in parent._children:
             if node in visited:
                 continue
             if self._check_cycle(node, child, visited):
                 return True
         return False
-    
-    def _build_graph(self):
-        node_to_layer_number = {}
-        # Count the layers and assign them to the nodes
-        for root in self.roots:
-            self._count_layers(root, 0, node_to_layer_number)
-            
-        # Raise if not all nodes have a layer number
+
+    def _find_roots(self):
+        roots = set()
         for node in self.nodes:
-            if node not in node_to_layer_number:
-                raise ValueError(f"Node {node} does not have a layer number")
-            
-        return node_to_layer_number
+            if len(node._parents) == 0:
+                roots.add(node)
+        return roots
     
-    def _count_layers(self, node: StateNode, layer_number: int, node_to_layer_number: Dict[StateNode, int]):
-        if node in node_to_layer_number:
-            return
-        node_to_layer_number[node] = layer_number
-        for child in node.children:
-            self._count_layers(child, layer_number + 1, node_to_layer_number)
-    
-    def notify_roots(self):
+    def notify_all(self):
         '''
-        Notifies all the root nodes that they should be processed.
+        Notifies all nodes. This is useful when initializing a new graph.
         '''
-        for root in self.roots:
-            root._notified = True
+        for root in self._find_roots():
+            root._notify()
         return self
     
-    def process(self, maximum_cycle_calls: int = 2):
+    def _layer_depth(self, node: StateNode, visited: Set[StateNode], depth: int):
+        if node in visited:
+            return depth
+        visited.add(node)
+        max_depth = depth
+        for child in node._children:
+            max_depth = max(max_depth, self._layer_depth(child, visited, depth + 1))
+        return max_depth
+        
+    def next_batch(self):
         '''
-        Process the graph. This will process the nodes in the order of their layers.
-        maximum_cycle_calls: The maximum number of times a node can be called in a cycle. Default is 2. Raises an error if the limit is exceeded.
+        Returns the next batch of nodes that can be processed, these nodes will not be dependent on each other.
         '''
-        node_to_layer_number = self._build_graph()
-        node_to_call_count = defaultdict(int)
-        # Process the nodes in layers
-        for node in sorted(self.nodes, key=lambda x: node_to_layer_number[x]):
-            # print(f"On Layer {node_to_layer_number[node]}")
-            node.process_wrapper()
-            node_to_call_count[node] += 1
-            if node_to_call_count[node] > maximum_cycle_calls:
-                raise ValueError(f"Maximum cycle calls exceeded for node {node}")
-        return self
+        all_notified = nodeset_get_notified(self.nodes)
+        
+        # For each node, find highest notified ancestor
+        highest_notified = set()
+        for node in all_notified:
+            highest_notified.update(highest_notified_ancestors(node))
+        
+        return highest_notified
