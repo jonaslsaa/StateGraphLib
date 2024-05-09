@@ -65,9 +65,15 @@ graph = StateGraph() \
 # Notify all nodes to process since the graph is completely new.
 graph.notify_all()
 
+# Define a simple graph runner.
+def run_graph(graph: StateGraph):
+    # Get the next batch of nodes to process, these can be processed in parallel
+    # We need to call next_batch after each batch is processed to get the new nodes to process
+    while batch := graph.next_batch():
+        for node in batch:
+            node.process()
+
 # Run the graph processing
-# It's up to you to decide how you want to process the nodes.
-# See a simple implementation of a graph runner in `example.py`
 run_graph(graph)
 
 # Serialize and deserialize node state
