@@ -12,8 +12,8 @@ class TicketNode(StateNode):
         content: str
 
     def on_notify(self):
-        # This node doesn't do anything on notify, onl
-        self._notify_children() # Notify children to process
+        # This node doesn't do anything on notify
+        pass
 
 class WeatherNode(StateNode):
     class State(BaseModel):
