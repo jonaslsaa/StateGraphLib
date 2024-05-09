@@ -1,16 +1,15 @@
 # StateGraphLib
 
-StateGraphLib is a minimalistic Python library designed to manage and process stateful nodes within a directed acyclic graph (DAG). It is particularly useful for AI Large Language Model (LLM) generation tasks and other scenarios where the state of a node depends on the states of its ancestor nodes. The library allows for updating node states through external services or AI models, which can be integrated within the node's processing logic.
+StateGraphLib is a minimalistic Python library that manages and processes stateful nodes within a directed acyclic graph (DAG). It is particularly useful for AI Large Language Model (LLM) generation tasks and other scenarios where the state of a node depends on the states of its ancestor nodes. The library allows for updating node states through external services or AI models, which can be integrated within the node's processing logic.
 
 ## Features
 
-- **Stateful Nodes**: Each node in the graph maintains its own state, which can be updated based on the node's logic.
-- **Directed Acyclic Graph**: Nodes can be connected in a parent-child relationship, forming a DAG to represent dependencies.
-- **Serialization/Deserialization**: Nodes can be serialized to JSON and deserialized back to their original state, making it easy to store and resume state.
-- **Custom Processing Logic**: Implement custom processing logic within nodes that can interact with AI LLMs or other services.
-- **Cycle Detection**: The library includes cycle detection to prevent the creation of cycles within the graph.
+- **Stateful Nodes**: Each node in the graph maintains its own state, which can be updated based on the node's logic. This automatically informs its children.
+- **Directed Acyclic Graph**: Nodes can be connected in a parent-child relationship, forming a DAG representing dependencies.
 - **Layered Processing**: Nodes are processed in layers based on their dependencies, ensuring that parent states are updated before their children.
-- **Type Annotations**: Use Pydantic models to define the state of each node, providing type safety and validation.
+- **Serialization/Deserialization**: Nodes can be serialized to JSON and deserialized back to their original state, making it easy to store and resume state.
+- **Explicit Cycles**: The library includes cycle detection to prevent the creation of cycles within the graph.
+- **Typed State**: Use Pydantic models to define the state of each node, providing type safety and validation.
 
 ## Usage
 
@@ -23,13 +22,13 @@ from StateGraph import StateGraph
 from StateNode import StateNode
 from pprint import pprint
 
-# Define node classes with custom processing logic
+# Define our node classes with custom processing logic
 class TicketNode(StateNode):
     class State(BaseModel):
         content: str
 
     def on_notify(self):
-        self._notify_children()
+        pass
 
 class WeatherNode(StateNode):
     class State(BaseModel):
@@ -41,10 +40,10 @@ class WeatherNode(StateNode):
 class FactsNode(StateNode):
     class State(BaseModel):
         facts: Set[str] = set()
-        feeling: Literal['happy', 'sad', 'neutral'] = 'neutral'
+        feeling: Literal['happy', 'sad', 'neutral'] = 'neutral' # You can define a default like this
         
     @staticmethod
-    def from_defaults():
+    def from_defaults():                                        # ... or like this.
         return FactsNode.load_from_dict({'facts': {'There will be facts here!'}})
 
     def on_notify(self):
@@ -63,18 +62,16 @@ graph = StateGraph() \
     .connect(ticket_node, facts_node) \
     .connect(weather_node, facts_node)
 
-# Notify all nodes to process since the graph is new
+# Notify all nodes to process since the graph is completely new.
 graph.notify_all()
 
-# Function to process the graph
+# Define a simple graph runner.
 def run_graph(graph: StateGraph):
-    iteration = 0
+    # Get the next batch of nodes to process, these can be processed in parallel
+    # We need to call next_batch after each batch is processed to get the new nodes to process
     while batch := graph.next_batch():
-        print(f"Batch {iteration}")
         for node in batch:
-            print(f"Processing {node.__class__.__name__}")
             node.process()
-        iteration += 1
 
 # Run the graph processing
 run_graph(graph)
