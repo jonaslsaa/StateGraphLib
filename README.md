@@ -28,7 +28,7 @@ class TicketNode(StateNode):
         content: str
 
     def on_notify(self):
-        self._notify_children()
+        pass
 
 class WeatherNode(StateNode):
     class State(BaseModel):
@@ -65,19 +65,9 @@ graph = StateGraph() \
 # Notify all nodes to process since the graph is completely new.
 graph.notify_all()
 
-# Function to process the graph
-def run_graph(graph: StateGraph):
-    iteration = 0
-    while batch := graph.next_batch():
-        print(f"Batch {iteration}")
-        for node in batch:
-            print(f"Processing {node.__class__.__name__}")
-            node.process()
-        iteration += 1
-
 # Run the graph processing
 # It's up to you to decide how you want to process the nodes.
-# See a simple implementation of graph runner in `example.py`
+# See a simple implementation of a graph runner in `example.py`
 run_graph(graph)
 
 # Serialize and deserialize node state
