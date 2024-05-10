@@ -60,8 +60,13 @@ class StateGraph:
         parent._children.add(child)
         child._parents.add(parent)
         # Add the nodes to the set
-        self.nodes.add(parent)
-        self.nodes.add(child)
+        self._add_node(parent)
+        self._add_node(child)
+        return self
+    
+    def _add_node(self, node: StateNode):
+        assert node.state() is not None, "State is not initialized, this might be due to instantiating the node directly. Use load_from_serialized, load_from_dict or from_defaults instead."
+        self.nodes.add(node)
         return self
     
     def _check_cycle(self, parent: StateNode, child: StateNode, visited: Set[StateNode]):

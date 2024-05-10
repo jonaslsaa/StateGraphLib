@@ -91,6 +91,7 @@ class StateNode(ABC):
         Call this method to process the node. Notifies children if the state has changed, and validates the state.
         It should not be overridden by the child class.
         '''
+        assert self._state is not None, "State is not initialized, this might be due to instantiating the node directly. Use load_from_serialized, load_from_dict or from_defaults instead."
         if not self._notified:
             return
         # Copy the state to check if it has changed
