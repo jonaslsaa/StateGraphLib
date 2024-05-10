@@ -6,6 +6,14 @@ from collections import deque
 
 from .common import NodeNotFoundError
 
+def pydantic_deep_eq(a: BaseModel, b: BaseModel) -> bool:
+    # First check using the default equality operator provided by Pydantic
+    if a != b:
+        # Only reliable way to check if the models are **not** equal
+        return False
+    # Then check by dumping the models to dict and comparing them, this compares nested models
+    return a.model_dump() == b.model_dump()
+
 class StateNode(ABC):
 
     class State(BaseModel):
@@ -54,7 +62,7 @@ class StateNode(ABC):
         # Process, which may change the state
         self.on_notify()
         # Check if the state has changed
-        if self._state != state_copy and len(self._children) > 0:
+        if len(self._children) > 0 and not pydantic_deep_eq(self._state, state_copy):
             # Notify children as their parent has changed
             self._notify_children()
             # Save the previous state
