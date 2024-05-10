@@ -1,4 +1,5 @@
 from collections import defaultdict
+from enum import Enum
 from typing import List, Dict, Literal, TypeVar, Union, Set
 from abc import ABC, abstractmethod
 from pydantic import BaseModel
@@ -15,7 +16,12 @@ def pydantic_deep_eq(a: BaseModel, b: BaseModel) -> bool:
     return a.model_dump() == b.model_dump()
 
 class StateNode(ABC):
-
+    
+    class SetStateMode(Enum):
+        SILENT = 0
+        NOTIFY_CHILDREN = 1
+        DEEP_COMPARE = 2
+    
     class State(BaseModel):
         ''' Pydantic validation model for the state of the node. This class should be implemented by the child class '''
         pass
@@ -33,6 +39,36 @@ class StateNode(ABC):
     
     def state(self) -> State:
         return self._state
+    
+    def set_state(self, state: State, notification_mode: SetStateMode = SetStateMode.DEEP_COMPARE):
+        '''
+        This method sets the state of the node if the state is valid. It notifies children if the state has changed.
+        Throws ValidationError if the state is invalid.
+        
+        Notification modes:
+        - SILENT: The state is set silently without notifying children.
+        - NOTIFY_CHILDREN: The state is set and children are notified. (Useful for performance reasons)
+        - DEEP_COMPARE: The state is set and children are notified only if the state has changed.
+        '''
+        # Validate the state
+        state.model_validate(state.model_dump())
+        
+        # Copy the model for deep comparison (if needed)
+        model_copy = None
+        if notification_mode == self.SetStateMode.DEEP_COMPARE:
+            model_copy = self._state.model_copy(deep=True)
+            
+        # Set the state
+        self._state = state
+        
+        # Notify children based on the mode
+        if notification_mode == self.SetStateMode.NOTIFY_CHILDREN:
+            # Notify children if the state has changed
+            self._notify_children()
+        elif notification_mode == self.SetStateMode.DEEP_COMPARE and not pydantic_deep_eq(self._state, model_copy):
+            # Notify children if the state has changed
+            self._notify_children()
+        return self
     
     def prev_state(self) -> State:
         return self._prev_state
