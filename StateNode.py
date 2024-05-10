@@ -135,5 +135,6 @@ class StateNode(ABC):
     def on_notify(self):
         '''
         This method should be implemented by the child class. This method is called by self.process() method and shouldn't be called directly.
+        If .state() is changed here, it will notify children.
         '''
         raise NotImplementedError("on_notify() method is not implemented")
