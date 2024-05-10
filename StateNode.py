@@ -20,10 +20,14 @@ class StateNode(ABC):
         self._parents: Set[StateNode] = set()
         self._children: Set[StateNode] = set()
         self._state: self.State = None
+        self._prev_state: self.State = None
         self._notified: bool = False
     
     def state(self) -> State:
         return self._state
+    
+    def prev_state(self) -> State:
+        return self._prev_state
     
     def serialize(self):
         '''
@@ -53,6 +57,8 @@ class StateNode(ABC):
         if self._state != state_copy and len(self._children) > 0:
             # Notify children as their parent has changed
             self._notify_children()
+            # Save the previous state
+            self._prev_state = state_copy
         # Reset notified flag
         self._notified = False
         # Validate the state
