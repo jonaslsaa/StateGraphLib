@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from pydantic import BaseModel
 from collections import deque
 
-from common import NodeNotFoundError
+from .common import NodeNotFoundError
 
 class StateNode(ABC):
 

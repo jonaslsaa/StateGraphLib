@@ -4,8 +4,8 @@ from abc import ABC, abstractmethod
 from pydantic import BaseModel
 from collections import deque
 
-from StateNode import StateNode
-from common import CycleDetectedError
+from .StateNode import StateNode
+from .common import CycleDetectedError
 
 
 def highest_notified_ancestors(node: StateNode):
