@@ -85,7 +85,7 @@ class StateGraph:
         Notifies all nodes. This is useful when initializing a new graph.
         '''
         for root in self.nodes:
-            root._notify()
+            root.notify()
         return self
         
     def next_batch(self):

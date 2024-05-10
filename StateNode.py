@@ -109,7 +109,11 @@ class StateNode(ABC):
         # Validate the state
         self.validate_state()
     
-    def _notify(self):
+    def notify(self):
+        '''
+        Mark the node to be processed. Usually called on root nodes.
+        If you have externally changed the state of the node, call apply_change() instead.
+        '''
         self._notified = True
     
     def _notify_children(self):
@@ -117,7 +121,7 @@ class StateNode(ABC):
         Notifies all the children of the node indicating that a dependent state has changed. Marks them to be processed.
         '''
         for child in self._children:
-            child._notify()
+            child.notify()
     
     def apply_change(self):
         '''
@@ -186,6 +190,6 @@ class StateNode(ABC):
     def on_notify(self):
         '''
         This method should be implemented by the child class. This method is called by self.process() method and shouldn't be called directly.
-        If .state() is changed here, it will notify children.
+        If state is changed here, it will notify children.
         '''
         raise NotImplementedError("on_notify() method is not implemented")
