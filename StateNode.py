@@ -8,11 +8,6 @@ from collections import deque
 from .common import NodeNotFoundError
 
 def pydantic_deep_eq(a: BaseModel, b: BaseModel) -> bool:
-    # First check using the default equality operator provided by Pydantic
-    if a != b:
-        # Only reliable way to check if the models are **not** equal
-        return False
-    # Then check by dumping the models to dict and comparing them, this compares nested models
     return a.model_dump() == b.model_dump()
 
 class StateNode(ABC):
@@ -47,8 +42,8 @@ class StateNode(ABC):
         
         Notification modes:
         - SILENT: The state is set silently without notifying children.
-        - NOTIFY_CHILDREN: The state is set and children are notified. (Useful for performance reasons)
-        - DEEP_COMPARE: The state is set and children are notified only if the state has changed.
+        - NOTIFY_CHILDREN: The state is set and children are always notified. (can be useful when state is very complex)
+        - DEEP_COMPARE: The state is set and children are notified only if the state has changed. (Recommended for most cases)
         '''
         # Validate the state
         state.model_validate(state.model_dump())
