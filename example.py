@@ -2,8 +2,8 @@
 
 from typing import List, Literal, Set, Union
 from pydantic import BaseModel
-from StateGraph import StateGraph
-from StateNode import StateNode
+from .StateGraph import StateGraph
+from .StateNode import StateNode
 
 from pprint import pprint
 
