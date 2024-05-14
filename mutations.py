@@ -1,6 +1,9 @@
 from typing import Any, List, Dict, Union, Set
-from pydantic import BaseModel
+from pydantic import BaseModel, create_model
 import json
+
+FLAG_UNKNOWN_MODELS_CONVERTED_TO_DICT = False
+FLAG_ALLOW_MIXING_BETWEEN_PRIMITIVE_AND_NESTED = False
 
 class MutationValue(BaseModel):
     value: str
@@ -24,32 +27,36 @@ def _serialize(value: Any) -> str:
         return value.model_dump_json()
     return json.dumps(value)
 
-def _deserialize(value: str, python_type: str, schema_json: str = None) -> Any:
+def _deserialize(mutation_value: MutationValue) -> Any:
     '''
     Deserialize a string to a value.
     '''
-    if python_type == 'set':
-        return set(json.loads(value))
-    if python_type == 'frozenset':
-        return frozenset(json.loads(value))
-    if python_type == 'BaseModel':
-        raise ValueError("BaseModel deserialization is not supported")
-        assert schema_json is not None, "schema_json is required for BaseModel deserialization"
-        return schema_json.model_load_json(value)
-    return json.loads(value)
+    if mutation_value.type_name == 'set':
+        return set(json.loads(mutation_value.value))
+    if mutation_value.type_name == 'frozenset':
+        return frozenset(json.loads(mutation_value.value))
+    if mutation_value.type_name == 'BaseModel':
+        raise NotImplementedError("Deserializing unknown nested models is not supported, and will not be implemented. Turn on the FLAG_UNKNOWN_MODELS_CONVERTED_TO_DICT flag to convert unknown models to dictionaries.")
+    return json.loads(mutation_value.value)
 
 def _create_mutation_value(value: Any) -> MutationValue:
     '''
     Create a MutationValue object from a value.
     '''
+    type_name = type(value).__name__
+    
+    # Handle nested models
     schema = None
     if isinstance(value, BaseModel):
         # Get classes schema
         schema = value.__class__.model_json_schema(mode='serialization')
-        print('schema', schema)
+        if not FLAG_UNKNOWN_MODELS_CONVERTED_TO_DICT:
+            type_name = 'BaseModel'
+        
+    # Return the MutationValue object
     return MutationValue(
         value=_serialize(value),
-        type_name=type(value).__name__,
+        type_name=type_name,
         schema=schema
     )
 
@@ -73,7 +80,7 @@ def apply_mutation(old_value: BaseModel, mutation: StateMutation, ignore_old_val
         raise ValueError(f"Old value {mutation.old_value.value} does not match the current value {current_value}")
     
     # Set the new value
-    setattr(value, mutation.path[-1], _deserialize(mutation.new_value.value, mutation.new_value.type_name))
+    setattr(value, mutation.path[-1], _deserialize(mutation.new_value))
     
     return old_value  # Return the modified model
 
@@ -94,6 +101,8 @@ def get_mutations(old_model: BaseModel, new_model: BaseModel, path: List[str] = 
                     get_mutations(old_value, new_value, path + [field])
                 )
             else:
+                if any([isinstance(new_value, BaseModel), isinstance(old_value, BaseModel)]) and not FLAG_ALLOW_MIXING_BETWEEN_PRIMITIVE_AND_NESTED:
+                    raise ValueError(f"Mixing between primitive and nested models is not allowed. Field: {field}. Turn on the FLAG_ALLOW_MIXING_BETWEEN_PRIMITIVE_AND_NESTED flag to allow this.")
                 # Add the mutation for primitive types
                 mutations.append(StateMutation(
                     path=path + [field],
@@ -112,7 +121,6 @@ if __name__ == '__main__':
     class NestedModel(BaseModel):
         nested_field: str
         double_nested: Union[DoubleNestedModel, None]
-        double_nested2: Union[DoubleNestedModel, None]
     
     class TestModel(BaseModel):
         name: str
@@ -128,7 +136,7 @@ if __name__ == '__main__':
                             age=25,
                             color="blue",
                             is_student=False,
-                            nested=NestedModel(nested_field="old_value", double_nested=DoubleNestedModel(other_field="new_value"), double_nested2=None),
+                            nested=NestedModel(nested_field="old_value", double_nested=DoubleNestedModel(other_field="abc")),
                             my_dict={"key": 10, "key2": 10},
                             my_set={10, 20},
                             frozen_set=frozenset([10, 20]))
@@ -136,7 +144,7 @@ if __name__ == '__main__':
                             age=50,
                             color="blue",
                             is_student=True,
-                            nested=NestedModel(nested_field="new_value", double_nested=None, double_nested2=DoubleNestedModel(other_field="new_value")),
+                            nested=NestedModel(nested_field="new_value", double_nested=DoubleNestedModel(other_field="def")),
                             my_dict={"key": 10, "key2": 20},
                             my_set={10, 30},
                             frozen_set=frozenset([10, 30]))
