@@ -99,10 +99,10 @@ class StateNode(ABC):
             self._notify_children()
             # Save the previous state
             self._prev_state = state_copy
-        # Reset notified flag
-        self._notified = False
         # Validate the state
         self.validate_state()
+        # Reset notified flag
+        self._notified = False
     
     def notify(self):
         '''
