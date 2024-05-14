@@ -7,30 +7,24 @@ from collections import deque
 from .StateNode import StateNode
 from .common import CycleDetectedError
 
-
-def highest_notified_ancestors(node: StateNode):
+def has_higher_notified_ancestor(node: StateNode):
     """
-    Returns a list of the highest notified ancestors of the given node.
+    Checks if the given node has any notified ancestors.
+
+    This function recursively traverses the parent nodes of the given node to determine if any of them, or their ancestors, have been notified.
 
     Args:
-        node (StateNode): The node for which to find the highest notified ancestors.
+        node (StateNode): The node for which to check for notified ancestors.
 
     Returns:
-        list: A list of StateNode objects representing the highest notified ancestors, these are the nodes that have been notified and are the highest in their hierarchy.
+        bool: True if there is at least one notified ancestor, False otherwise.
     """
-    notified_dependents = []
-    # For each parent, get the highest notified ancestor
     for p in node._parents:
-        others = highest_notified_ancestors(p)
-        notified_dependents.extend(others)
-    # If any parent is notified, return the parent as it is the highest notified ancestor
-    if len(notified_dependents) > 0:
-        return notified_dependents
-    # If no parent is notified, return the node if it is notified
-    if node._notified:
-        return [node]
-    # If the node is not notified, return empty
-    return []
+        if p._notified:
+            return True
+        if has_higher_notified_ancestor(p):
+            return True
+    return False
 
 def nodeset_get_notified(nodes: Set[StateNode]):
     '''
@@ -97,10 +91,13 @@ class StateGraph:
                 set: A set of nodes that can be processed in parallel without dependencies.
             '''
             all_notified = nodeset_get_notified(self.nodes)
-            
-            # For each node, find highest notified ancestor
+
+
+            # Find the highest notified nodes
             highest_notified = set()
+            # For each node, check if it has a higher notified ancestor, if not, add it as it has no dependencies
             for node in all_notified:
-                highest_notified.update(highest_notified_ancestors(node))
+                if not has_higher_notified_ancestor(node):
+                    highest_notified.add(node)
             
             return highest_notified
