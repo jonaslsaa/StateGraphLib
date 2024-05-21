@@ -1,6 +1,11 @@
 from typing import Any, List, Dict, Union, Set
 from pydantic import BaseModel, create_model
+import pydantic
 import json
+
+# Requries pydantic >= 2
+if pydantic.__version__.startswith('1.') or pydantic.__version__.startswith('0.'):
+    print("[WARNING] It seems you are using pydantic <2.0. Please upgrade to the latest version.")
 
 FLAG_UNKNOWN_MODELS_CONVERTED_TO_DICT = False
 FLAG_ALLOW_MIXING_BETWEEN_PRIMITIVE_AND_NESTED = False
@@ -8,7 +13,7 @@ FLAG_ALLOW_MIXING_BETWEEN_PRIMITIVE_AND_NESTED = False
 class MutationValue(BaseModel):
     value: str
     type_name: str  # Supports JSON serializable types (int, str, bool, list, dict) and also Sets, BaseModel is also supported
-    schema: Union[Dict[str, Any], None] = None # Optional schema to validate the new value (must be a Pydantic model)
+    value_model_schema: Union[Dict[str, Any], None] = None # Optional schema to validate the new value (must be a Pydantic model)
 
 class StateMutation(BaseModel):
     path: List[str]  # Path to the value that was changed, within model
@@ -39,7 +44,7 @@ def _deserialize(mutation_value: MutationValue) -> Any:
         raise NotImplementedError("Deserializing unknown nested models is not supported, and will not be implemented. Turn on the FLAG_UNKNOWN_MODELS_CONVERTED_TO_DICT flag to convert unknown models to dictionaries.")
     return json.loads(mutation_value.value)
 
-def _create_mutation_value(value: Any) -> MutationValue:
+def create_mutation_value(value: Any) -> MutationValue:
     '''
     Create a MutationValue object from a value.
     '''
@@ -57,7 +62,7 @@ def _create_mutation_value(value: Any) -> MutationValue:
     return MutationValue(
         value=_serialize(value),
         type_name=type_name,
-        schema=schema
+        value_model_schema=schema
     )
 
 def apply_mutation(old_value: BaseModel, mutation: StateMutation, ignore_old_value=False):
@@ -105,12 +110,26 @@ def get_mutations(old_model: BaseModel, new_model: BaseModel, path: List[str] = 
                     raise ValueError(f"Mixing between primitive and nested models is not allowed. Field: {field}. Turn on the FLAG_ALLOW_MIXING_BETWEEN_PRIMITIVE_AND_NESTED flag to allow this.")
                 # Add the mutation for primitive types
                 mutations.append(StateMutation(
-                    path=path + [field],
-                    old_value=_create_mutation_value(old_value),
-                    new_value=_create_mutation_value(new_value)
+                    path =       path + [field],
+                    old_value =  create_mutation_value(old_value),
+                    new_value =  create_mutation_value(new_value)
                 ))
     return mutations
 
+def validate_mutation(old_model: BaseModel, mutation: StateMutation, ignore_old_value=True):
+    '''
+    Validate a mutation against a model.
+
+    Returns True if the mutation is valid, False otherwise.
+    '''
+    # Try to apply the mutation
+    try:
+        apply_mutation(old_model, mutation, ignore_old_value=ignore_old_value)
+    except AttributeError: # Expected if the path does not exist
+        return False
+    except ValueError: # Expected if the old value does not match the current value
+        return False
+    return True
 
 if __name__ == '__main__':
     from pprint import pprint
@@ -145,12 +164,13 @@ if __name__ == '__main__':
                             color="blue",
                             is_student=True,
                             nested=NestedModel(nested_field="new_value", double_nested=DoubleNestedModel(other_field="def")),
-                            my_dict={"key": 10, "key2": 20},
+                            my_dict={"key": 10, "key3": 20},
                             my_set={10, 30},
                             frozen_set=frozenset([10, 30]))
     
     # Get the mutations required to transform old_model into new_model
     mutations = get_mutations(old_model, new_model)
+    print("\n * Mutations:")
     pprint(mutations)
     
     # Apply each mutation to the old_model
@@ -158,4 +178,27 @@ if __name__ == '__main__':
         old_model = apply_mutation(old_model, mutation)
     
     # Print the final state of old_model after all mutations
+    print("\n\n * Final state of old_model:")
     pprint(old_model)
+    
+    
+    print("\n\n Testing validation of mutations:")
+    # Validate a mutation
+    ## Testing valid mutation
+    m = StateMutation(
+        path=['name'],
+        old_value=create_mutation_value('John'),
+        new_value=create_mutation_value('James')
+    )
+    print(validate_mutation(old_model, m))  # Should return True
+    
+    ## Testing invalid mutation
+    m = StateMutation(
+        path=['full_name'], # Invalid path
+        old_value=create_mutation_value('John'),
+        new_value=create_mutation_value('James')
+    )
+    
+    print(validate_mutation(old_model, m))  # Should return False
+    
+    
