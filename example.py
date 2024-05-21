@@ -4,6 +4,7 @@ from typing import List, Literal, Set, Union
 from pydantic import BaseModel
 from .StateGraph import StateGraph
 from .StateNode import StateNode
+import concurrent.futures
 
 from pprint import pprint
 
@@ -62,6 +63,16 @@ def run_graph(graph: StateGraph):
             print(f"    - Processing {node.__class__.__name__}")
             node.process()
         it += 1
+
+def run_graph_concurrent(graph: StateGraph):
+    '''
+    Example of how to process a graph in parallel using ThreadPoolExecutor
+    '''
+    while batch := graph.next_batch():
+        # Process all nodes in the batch in parallel
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            for node in batch:
+                executor.submit(node.process)
 
 if __name__ == '__main__':
     # We can create nodes with initial states
