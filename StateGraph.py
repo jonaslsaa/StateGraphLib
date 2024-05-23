@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import List, Dict, Literal, TypeVar, Union, Set
+from typing import List, Dict, Literal, Type, TypeVar, Union, Set
 
 from .StateNode import StateNode
 from .common import CycleDetectedError
@@ -78,6 +78,21 @@ class StateGraph:
         for root in self.nodes:
             root.notify()
         return self
+    
+    def get_node(self, node_class: Type[StateNode]) -> Union[StateNode, None]:
+        '''
+        Returns the first node found of the given class.
+        '''
+        for node in self.nodes:
+            if isinstance(node, node_class):
+                return node
+        return None
+
+    def get_nodes(self, node_class: Type[StateNode]) -> List[StateNode]:
+        '''
+        Returns a list of nodes of the given class.
+        '''
+        return [node for node in self.nodes if isinstance(node, node_class)]
         
     def next_batch(self):
             '''
