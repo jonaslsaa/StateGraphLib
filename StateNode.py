@@ -31,6 +31,13 @@ class StateNode(ABC):
         self._state: self.State = None
         self._prev_state: self.State = None
         self._notified: bool = False
+        self.post_init()
+    
+    def post_init(self):
+        '''
+        This method can be implemented by the child class. This method is called after the node is initialized.
+        '''
+        pass
     
     def state(self) -> State:
         return self._state
