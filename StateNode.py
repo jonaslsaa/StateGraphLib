@@ -12,6 +12,8 @@ def pydantic_deep_eq(a: BaseModel, b: BaseModel) -> bool:
 
 class StateNode(ABC):
     
+    VERSION = "1.0.0"
+    
     class SetStateMode(Enum):
         SILENT = 0
         NOTIFY_CHILDREN = 1

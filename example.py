@@ -2,8 +2,8 @@
 
 from typing import List, Literal, Set, Union
 from pydantic import BaseModel
-from .StateGraph import StateGraph
-from .StateNode import StateNode
+
+from . import GraphSerializer, StateGraph, StateNode
 import concurrent.futures
 
 from pprint import pprint
@@ -130,3 +130,23 @@ if __name__ == '__main__':
     print("\n* Resumed state:")
     pprint(ticket_node.state())
     pprint(facts_node.state())
+    
+    # Let's try serializing the graph
+    serialized_graph = GraphSerializer.serialize(graph)
+    
+    print("\n* Serialized graph:")
+    pprint(serialized_graph)
+    
+    # Now let's try to deserialize the graph
+    new_graph = GraphSerializer.deserialize(serialized_graph, {TicketNode, WeatherNode, FactsNode})
+    
+    print("\n* Deserialized graph:")
+    pprint(new_graph)
+    
+    # Let's process the graph
+    run_graph(new_graph) # Nothing should happen as the graph is already stable
+    
+    # Let's see the state of the facts node
+    pprint(facts_node.state())
+    
+    
