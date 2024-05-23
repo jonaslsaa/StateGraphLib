@@ -23,8 +23,8 @@ class StateNode(ABC):
     
     def __init__(self):
         '''
-            This shouldn't be overridden by the child class, or directly called upon.
-            Use `load_from_serialized` or `load_from_dict` instead.
+            Usually, this shouldn't be overridden by the child class, or directly called upon.
+            Use `from_serialized` or `from_dict` instead.
         '''
         self._parents: Set[StateNode] = set()
         self._children: Set[StateNode] = set()
@@ -156,22 +156,34 @@ class StateNode(ABC):
         raise NodeNotFoundError(f"Ancestor of type {cls} not found")
     
     @classmethod
-    def load_from_serialized(cls, serialized_data: str):
+    def from_serialized(cls, serialized_data: str):
         '''
         Loads the node from a serialized JSON string.
         '''
         node = cls()
-        node._state = node.State.model_validate_json(serialized_data)
-        return node
+        return node.load_from_serialized(serialized_data)
     
     @classmethod
-    def load_from_dict(cls, data: dict):
+    def from_dict(cls, data: dict):
         '''
         Loads the node from a dictionary.
         '''
         node = cls()
-        node._state = node.State.model_validate(data)
-        return node
+        return node.load_from_dict(data)
+    
+    def load_from_serialized(self, serialized_data: str):
+        '''
+        Loads the node from a serialized JSON string.
+        '''
+        self._state = self.State.model_validate_json(serialized_data)
+        return self
+
+    def load_from_dict(self, data: dict):
+        '''
+        Loads the node from a dictionary.
+        '''
+        self._state = self.State.model_validate(data)
+        return self
     
     @classmethod
     def from_defaults(cls):

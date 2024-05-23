@@ -44,7 +44,7 @@ class FactsNode(StateNode):
         
     @staticmethod
     def from_defaults():                                        # ... or like this.
-        return FactsNode.load_from_dict({'facts': {'There will be facts here!'}})
+        return FactsNode.from_dict({'facts': {'There will be facts here!'}})
 
     def on_notify(self):
         ticket_content = self.get_ancestor(TicketNode).state().content
@@ -53,7 +53,7 @@ class FactsNode(StateNode):
         self.state().feeling = 'happy' if weather_node.state().weather == 'sunny' else 'sad'
 
 # Initialize nodes
-ticket_node = TicketNode.load_from_dict({'content': 'Hello, can you help me?'})
+ticket_node = TicketNode.from_dict({'content': 'Hello, can you help me?'})
 weather_node = WeatherNode.from_defaults()
 facts_node = FactsNode.from_defaults()
 
@@ -78,7 +78,7 @@ run_graph(graph)
 
 # Serialize and deserialize node state
 serialized_ticket_node = ticket_node.serialize()
-ticket_node = TicketNode.load_from_serialized(serialized_ticket_node)
+ticket_node = TicketNode.from_serialized(serialized_ticket_node)
 
 # Output the resumed state
 print("\n* Resumed state:")
