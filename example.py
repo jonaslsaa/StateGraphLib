@@ -30,7 +30,7 @@ class FactsNode(StateNode):
         feeling: Literal['happy', 'sad', 'neutral'] = 'neutral'
         
     def from_defaults():
-        return FactsNode.load_from_dict({'facts': {'There will be facts here!'}})
+        return FactsNode.from_dict({'facts': {'There will be facts here!'}})
 
     def on_notify(self):
         # Get content from the ticket node
@@ -79,9 +79,9 @@ if __name__ == '__main__':
     # Let's create two root nodes, TicketNode and WeatherNode and a FactsNode derived from them
     
     # There are three ways to initialize root nodes,
-    # by setting the state directly with either `load_from_dict`, 'load_from_serialized', or `from_defaults`
+    # by setting the state directly with either `from_dict`, 'from_serialized', or `from_defaults`
     
-    ticket_node = TicketNode.load_from_dict({'content': 'Hello, can you help me?'})
+    ticket_node = TicketNode.from_dict({'content': 'Hello, can you help me?'})
     weather_node = WeatherNode.from_defaults()
     facts_node = FactsNode.from_defaults()
     
@@ -117,14 +117,14 @@ if __name__ == '__main__':
     
     pprint(facts_node.state())
     
-    # We can also serialize and deserialize the nodes, this is done using the `serialize` and `load_from_serialized` methods
+    # We can also serialize and deserialize the nodes, this is done using the `serialize` and `from_serialized` methods
     # These will serialize the state of the node to a JSON string and load the state from the JSON string respectively
     # Let's try to resume a graph based on the serialized data from previous run
     serialized_ticket_node = ticket_node.serialize()
     serialized_facts_node = facts_node.serialize()
     
-    ticket_node = TicketNode.load_from_serialized(serialized_ticket_node)
-    facts_node = FactsNode.load_from_serialized(serialized_facts_node)
+    ticket_node = TicketNode.from_serialized(serialized_ticket_node)
+    facts_node = FactsNode.from_serialized(serialized_facts_node)
     
     # Perfect, we have the same nodes as before
     print("\n* Resumed state:")
