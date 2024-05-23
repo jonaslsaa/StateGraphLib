@@ -191,7 +191,7 @@ class StateNode(ABC):
         This method can be implemented by the child class. This method should return a new instance of the class with a valid default state. Use `load_from_dict`
         By default, it returns an instance with empty state - this might fail.
         '''
-        return cls.load_from_dict({})
+        return cls().load_from_dict({})
     
     @abstractmethod
     def on_notify(self):
