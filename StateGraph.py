@@ -47,7 +47,7 @@ class StateGraph:
         # Check if this addition will create a cycle
         has_cycle = self._check_cycle(parent, child, set())
         if has_cycle and not allow_cycle:
-            raise CycleDetectedError("You can allow cycles by setting allow_cycle=True")
+            raise CycleDetectedError("You can allow cycles by setting allow_cycle=True - but ensure there are at least one root node.")
         
         # Connect the nodes
         parent._children.add(child)
