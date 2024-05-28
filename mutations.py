@@ -131,6 +131,8 @@ def validate_mutation(old_model: BaseModel, mutation: StateMutation, ignore_old_
         return False
     return True
 
+
+# Example usage
 if __name__ == '__main__':
     from pprint import pprint
     
