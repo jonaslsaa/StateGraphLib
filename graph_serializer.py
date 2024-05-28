@@ -56,7 +56,7 @@ class GraphSerializer:
         return SerializedGraph(nodes=nodes, connections=connections)
     
     @staticmethod
-    def _id_to_nodes(nodes: Set[SerializedNode], node_classes: Dict[str, Type[StateNode]], reintialize_on_error: bool) -> Dict[StrOrInt, StateNode]:
+    def _id_to_nodes(nodes: Set[SerializedNode], node_classes: Dict[str, Type[StateNode]], reinitialize_on_error: bool) -> Dict[StrOrInt, StateNode]:
         id_to_node = {}
         for serialized_node in nodes:
             # Try to find the class for the node
@@ -74,7 +74,7 @@ class GraphSerializer:
                 node = node_class.from_serialized(serialized_node.serialized_state)
             except (ValidationError, TypeError, JSONDecodeError) as e:
                 # If the node cannot be deserialized, we can either skip it or reinitialize it
-                if not reintialize_on_error:
+                if not reinitialize_on_error:
                     raise DeserializationError(f"Error deserializing node {serialized_node.id}: {e}")
                 node = node_class.from_defaults()
                 
@@ -85,13 +85,13 @@ class GraphSerializer:
     @staticmethod
     def deserialize(serialized_graph: SerializedGraph,
                     node_classes: Set[Type[StateNode]],
-                    reintialize_on_error: bool = False) -> StateGraph:
+                    reinitialize_on_error: bool = False) -> StateGraph:
         graph = StateGraph()
         
         node_classes_dict = {node_class.__name__: node_class for node_class in node_classes}
         print('node_classes_dict', node_classes_dict)
         
-        id_to_node = GraphSerializer._id_to_nodes(serialized_graph.nodes, node_classes_dict, reintialize_on_error=reintialize_on_error)
+        id_to_node = GraphSerializer._id_to_nodes(serialized_graph.nodes, node_classes_dict, reinitialize_on_error=reinitialize_on_error)
     
         for parent_id, child_id in serialized_graph.connections:
             assert parent_id in id_to_node, f"Parent node {parent_id} not found"
