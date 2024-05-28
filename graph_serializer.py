@@ -3,7 +3,7 @@ from typing import Dict, Set, Tuple, Type
 from pydantic import BaseModel
 from pydantic_core import ValidationError
 
-from StateGraphLib import StateGraph, StateNode
+from . import StateGraph, StateNode
 
 StrOrInt = str | int
 
