@@ -1,3 +1,4 @@
+Fork of https://github.com/TheVoxcraft/StateGraphLib
 # StateGraphLib
 
 StateGraphLib is a minimalistic Python library that manages and processes stateful nodes within a directed acyclic graph (DAG). It is particularly useful for AI Large Language Model (LLM) generation tasks and other scenarios where the state of a node depends on the states of its ancestor nodes. The library allows for updating node states through external services or AI models, which can be integrated within the node's processing logic.
