@@ -41,6 +41,8 @@ class StateGraph:
             allow_cycle: If True, the connection will be made even if it creates a cycle. Default is False. Never if the parent is a root node.
         '''
         assert parent is not child, "Parent and child cannot be the same"
+        assert isinstance(parent, StateNode), "Parent must be a subclass of StateNode"
+        assert isinstance(child, StateNode), "Child must be a subclass of StateNode"
         
         # Check if this addition will create a cycle
         has_cycle = self._check_cycle(parent, child, set())
