@@ -1,5 +1,5 @@
 from json import JSONDecodeError
-from typing import Dict, Set, Tuple, Type
+from typing import Any, Dict, Set, Tuple, Type
 from pydantic import BaseModel
 from pydantic_core import ValidationError
 
@@ -8,6 +8,7 @@ from .exceptions import DeserializationError, UnknownNodeError, VersionMismatchE
 from . import StateGraph, StateNode
 
 StrOrInt = str | int
+MappedArgumentsOrArgs = Dict[type[StateNode], Dict[str, Any]] | Dict[str, Any]
 
 class SerializedNode(BaseModel):
     id: StrOrInt
@@ -50,7 +51,7 @@ class GraphSerializer:
     @staticmethod
     def _id_to_nodes(nodes: Set[SerializedNode],
                     node_classes: Dict[str, Type[StateNode]],
-                    node_init_args: Dict[Type[StateNode], Dict[str, any]] | Dict[str, any],
+                    node_init_args: MappedArgumentsOrArgs,
                     reinitialize_on_error: bool) -> Dict[StrOrInt, StateNode]:       
         id_to_node: Dict[StrOrInt, StateNode] = {}
         for serialized_node in nodes:
@@ -93,7 +94,7 @@ class GraphSerializer:
     @staticmethod
     def deserialize(serialized_graph: SerializedGraph,
                     node_classes: Set[Type[StateNode]],
-                    node_init_args: Dict[Type[StateNode], Dict[str, any]] | Dict[str, any] = {},
+                    node_init_args: MappedArgumentsOrArgs = {},
                     reinitialize_on_error: bool = False) -> StateGraph:
         graph = StateGraph()
         
