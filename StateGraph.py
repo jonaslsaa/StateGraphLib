@@ -108,7 +108,7 @@ class StateGraph:
 
 
             # Find the highest notified nodes
-            highest_notified = set()
+            highest_notified: Set[StateNode] = set()
             # For each node, check if it has a higher notified ancestor, if not, add it as it has no dependencies
             for node in all_notified:
                 if not has_higher_notified_ancestor(node):
