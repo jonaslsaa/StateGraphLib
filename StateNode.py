@@ -165,19 +165,19 @@ class StateNode(ABC):
         raise NodeNotFoundError(f"Ancestor of type {cls} not found")
     
     @classmethod
-    def from_serialized(cls, serialized_data: str):
+    def from_serialized(cls, serialized_data: str, node_init_args: Dict[str, any] = {}):
         '''
         Loads the node from a serialized JSON string.
         '''
-        node = cls()
+        node = cls(**node_init_args)
         return node.load_from_serialized(serialized_data)
     
     @classmethod
-    def from_dict(cls, data: dict):
+    def from_dict(cls, data: dict, node_init_args: Dict[str, any] = {}):
         '''
         Loads the node from a dictionary.
         '''
-        node = cls()
+        node = cls(**node_init_args)
         return node.load_from_dict(data)
     
     def load_from_serialized(self, serialized_data: str):
@@ -195,12 +195,15 @@ class StateNode(ABC):
         return self
     
     @classmethod
-    def from_defaults(cls):
+    def from_defaults(cls, node_init_args: Dict[str, any] = {}):
         '''
         This method can be implemented by the child class. This method should return a new instance of the class with a valid default state. Use `load_from_dict`
         By default, it returns an instance with empty state - this might fail.
         '''
-        return cls().load_from_dict({})
+        # assert that all arguments are provided
+        node = cls(**node_init_args)
+        return node.load_from_dict({})
+        
     
     @abstractmethod
     def on_notify(self):

@@ -52,6 +52,16 @@ class FactsNode(StateNode):
         else:
             self.state().feeling = 'sad'
 
+class CustomStateNodeWithInitArgs(StateNode):
+    def __init__(self, my_argument: str):
+        super().__init__()
+        self.my_argument = my_argument
+    
+    class State(BaseModel):
+        pass
+    
+    def on_notify(self):
+        pass
 
 def run_graph(graph: StateGraph):
     it = 0
@@ -84,6 +94,7 @@ if __name__ == '__main__':
     ticket_node = TicketNode.from_dict({'content': 'Hello, can you help me?'})
     weather_node = WeatherNode.from_defaults()
     facts_node = FactsNode.from_defaults()
+    custom_node = CustomStateNodeWithInitArgs.from_defaults({'my_argument': 'Hello'})
     
     # Let's see the initial state of the facts node
     pprint(facts_node.state())
@@ -92,7 +103,8 @@ if __name__ == '__main__':
     # Now let's create a graph and connect the root nodes to the child node
     graph = StateGraph()                    \
         .connect(ticket_node, facts_node)   \
-        .connect(weather_node, facts_node)
+        .connect(weather_node, facts_node)  \
+        .connect(weather_node, custom_node)
     
     # As this is a new graph, we need to notify all nodes to process
     # This is because the graph is not stable yet and all nodes need to be processed
@@ -138,7 +150,7 @@ if __name__ == '__main__':
     pprint(serialized_graph)
     
     # Now let's try to deserialize the graph
-    new_graph = GraphSerializer.deserialize(serialized_graph, {TicketNode, WeatherNode, FactsNode})
+    new_graph = GraphSerializer.deserialize(serialized_graph, {type(n) for n in graph.nodes}, node_init_args={CustomStateNodeWithInitArgs: {'my_argument': 'Hello'}})
     
     print("\n* Deserialized graph:")
     pprint(new_graph)
@@ -148,5 +160,3 @@ if __name__ == '__main__':
     
     # Let's see the state of the facts node
     pprint(facts_node.state())
-    
-    
