@@ -89,7 +89,6 @@ class GraphSerializer:
         graph = StateGraph()
         
         node_classes_dict = {node_class.__name__: node_class for node_class in node_classes}
-        print('node_classes_dict', node_classes_dict)
         
         id_to_node = GraphSerializer._id_to_nodes(serialized_graph.nodes, node_classes_dict, reinitialize_on_error=reinitialize_on_error)
     
