@@ -97,10 +97,19 @@ class GraphSerializer:
                     reinitialize_on_error: bool = False) -> StateGraph:
         graph = StateGraph()
         
+        # Map the node classes to their names
         node_classes_dict = {node_class.__name__: node_class for node_class in node_classes}
         
+        # Convert the serialized nodes to actual nodes
         id_to_node = GraphSerializer._id_to_nodes(serialized_graph.nodes, node_classes_dict, node_init_args, reinitialize_on_error)
     
+        # Connect the nodes
+        GraphSerializer.connect_nodes(graph, serialized_graph, id_to_node)
+            
+        return graph
+
+    @staticmethod
+    def connect_nodes(graph: StateGraph, serialized_graph: SerializedGraph, id_to_node: Dict[StrOrInt, StateNode]):
         for parent_id, child_id in serialized_graph.connections:
             assert parent_id in id_to_node, f"Parent node {parent_id} not found"
             assert child_id in id_to_node, f"Child node {child_id} not found"
@@ -108,8 +117,6 @@ class GraphSerializer:
             parent = id_to_node[parent_id]
             child = id_to_node[child_id]
             graph.connect(parent, child)
-            
-        return graph
 
 
 if __name__ == "__main__":
