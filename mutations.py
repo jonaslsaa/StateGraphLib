@@ -93,7 +93,7 @@ def get_mutations(old_model: BaseModel, new_model: BaseModel, path: List[str] = 
     '''
     Get the mutations that need to be applied to old_model to get to new_model.
     '''
-    mutations = []
+    mutations: List[StateMutation] = []
     for field in new_model.model_fields:
         new_value = getattr(new_model, field)
         old_value = getattr(old_model, field)
