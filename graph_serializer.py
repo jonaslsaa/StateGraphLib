@@ -3,7 +3,7 @@ from typing import Dict, Set, Tuple, Type
 from pydantic import BaseModel
 from pydantic_core import ValidationError
 
-from StateGraphLib.exceptions import DeserializationError, UnknownNodeError, VersionMismatchError
+from .exceptions import DeserializationError, UnknownNodeError, VersionMismatchError
 
 from . import StateGraph, StateNode
 
