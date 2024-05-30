@@ -3,6 +3,8 @@ from typing import Dict, Set, Tuple, Type
 from pydantic import BaseModel
 from pydantic_core import ValidationError
 
+from StateGraphLib.exceptions import DeserializationError, UnknownNodeError, VersionMismatchError
+
 from . import StateGraph, StateNode
 
 StrOrInt = str | int
@@ -19,16 +21,6 @@ class SerializedNode(BaseModel):
 class SerializedGraph(BaseModel):
     nodes: Set[SerializedNode]
     connections: Set[Tuple[StrOrInt, StrOrInt]]
-
-class DeserializationError(Exception):
-    pass
-
-class VersionMismatchError(DeserializationError):
-    pass
-
-class UnknownNodeError(DeserializationError):
-    pass
-
 
 class GraphSerializer:
     
@@ -56,8 +48,10 @@ class GraphSerializer:
         return SerializedGraph(nodes=nodes, connections=connections)
     
     @staticmethod
-    def _id_to_nodes(nodes: Set[SerializedNode], node_classes: Dict[str, Type[StateNode]], reinitialize_on_error: bool) -> Dict[StrOrInt, StateNode]:
-        id_to_node = {}
+    def _id_to_nodes(nodes: Set[SerializedNode],
+                    node_classes: Dict[str, Type[StateNode]],
+                    reinitialize_on_error: bool) -> Dict[StrOrInt, StateNode]:
+        id_to_node: Dict[StrOrInt, StateNode] = {}
         for serialized_node in nodes:
             # Try to find the class for the node
             try:
@@ -67,7 +61,11 @@ class GraphSerializer:
             
             # Check if the version matches
             if node_class.VERSION != serialized_node.version:
-                raise VersionMismatchError(f"Version mismatch for node {serialized_node.id}. Expected {node_class.VERSION}, got {serialized_node.version}")
+                if not reinitialize_on_error:
+                    raise VersionMismatchError(f"Version mismatch for node {serialized_node.id}. Expected {node_class.VERSION}, got {serialized_node.version}")
+                # Reinitialize the node
+                node = node_class.from_defaults()
+                # Then, still try to deserialize the state, this will likely fail but that's okay.
             
             # Deserialize the node
             try:
@@ -76,6 +74,7 @@ class GraphSerializer:
                 # If the node cannot be deserialized, we can either skip it or reinitialize it
                 if not reinitialize_on_error:
                     raise DeserializationError(f"Error deserializing node {serialized_node.id}: {e}")
+                # Reinitialize the node
                 node = node_class.from_defaults()
                 
             # Add the node to the dictionary
@@ -101,3 +100,63 @@ class GraphSerializer:
             graph.connect(parent, child)
             
         return graph
+
+
+if __name__ == "__main__":
+    class TestNode(StateNode):
+        class State(BaseModel):
+            value: int = 0
+            
+        VERSION = 1
+        
+        def on_notify(self):
+            self.state().value += 1
+    
+    graph = StateGraph()
+    node1 = TestNode.from_defaults()
+    node2 = TestNode.from_defaults()
+    graph.connect(node1, node2)
+
+    serialized_graph = GraphSerializer.serialize(graph)
+    
+    print("Serialized graph:")
+    print(serialized_graph.model_dump_json(indent=2))
+    
+    deserialized_graph = GraphSerializer.deserialize(serialized_graph, {TestNode})
+    
+    print("Deserialized graph:")
+    print(deserialized_graph)
+    print(deserialized_graph.nodes)
+    
+    class TestNode(StateNode):
+        class State(BaseModel):
+            value: int = 0
+            
+        VERSION = 2
+        
+        def on_notify(self):
+            self.state().value += 1
+    
+    print("Test version mismatch and unknown node errors")
+    # Test version mismatch
+    try:
+        deserialized_graph = GraphSerializer.deserialize(serialized_graph, {TestNode})
+    except VersionMismatchError as e:
+        print("OK - Got version mismatch error")
+    # set version to 2 to fix the error
+    serialized_graph.nodes = {SerializedNode(id=node.id, class_name=node.class_name, version=2, serialized_state=node.serialized_state) for node in serialized_graph.nodes}
+    
+    # Test unknown node
+    serialized_graph.nodes.add(SerializedNode(id=100, class_name="AnUnknownNode", version=1, serialized_state='{"value": 0}'))
+
+    try:
+        deserialized_graph = GraphSerializer.deserialize(serialized_graph, {TestNode})
+    except UnknownNodeError as e:
+        print("OK - Got unknown node error")
+    serialized_graph.nodes = {node for node in serialized_graph.nodes if node.class_name != "AnUnknownNode"} # Remove the unknown node
+    
+    # Test reinitialize on error
+    deserialized_graph = GraphSerializer.deserialize(serialized_graph, {TestNode}, reinitialize_on_error=True)
+    print("Deserialized graph with reinitialize on error:")
+
+    
