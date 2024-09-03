@@ -122,7 +122,6 @@ def validate_mutation(old_model: BaseModel, mutation: StateMutation, ignore_old_
 
     Returns True if the mutation is valid, False otherwise.
     '''
-    # Try to apply the mutation
     try:
         # Create a copy of the model to avoid modifying the original
         model_copy = old_model.model_copy(deep=True)
@@ -135,8 +134,11 @@ def validate_mutation(old_model: BaseModel, mutation: StateMutation, ignore_old_
         # Get the field info
         field = value.model_fields[mutation.path[-1]]
         
+        # Deserialize the new value
+        new_value = _deserialize(mutation.new_value)
+        
         # Validate the new value against the field type
-        field.validate(json.loads(mutation.new_value.value), {})
+        field.validate(new_value, {})
         
         # If we got here, the new value is valid for the field
         # Now try to apply the mutation
