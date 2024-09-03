@@ -30,8 +30,8 @@ class StateNode(ABC):
         '''
         self._parents: Set[StateNode] = set()
         self._children: Set[StateNode] = set()
-        self._state: self.State = self.State()
-        self._prev_state: self.State = self.State()
+        self._state: self.State = None
+        self._prev_state: self.State = None
         self._notified: bool = False
         self.post_init()
     
@@ -185,6 +185,7 @@ class StateNode(ABC):
         Loads the node from a serialized JSON string.
         '''
         self._state = self.State.model_validate_json(serialized_data)
+        self._prev_state = self._state.model_copy(deep=True)
         return self
 
     def load_from_dict(self, data: dict):
@@ -192,6 +193,7 @@ class StateNode(ABC):
         Loads the node from a dictionary.
         '''
         self._state = self.State.model_validate(data)
+        self._prev_state = self._state.model_copy(deep=True)
         return self
     
     @classmethod
