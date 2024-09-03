@@ -143,6 +143,9 @@ def validate_mutation(old_model: BaseModel, mutation: StateMutation, ignore_old_
         # If we got here, the new value is valid for the field
         # Now try to apply the mutation
         apply_mutation(model_copy, mutation, ignore_old_value=ignore_old_value)
+        
+        # Validate the entire model after applying the mutation
+        model_copy.model_validate(model_copy.model_dump())
     except (AttributeError, KeyError): # Expected if the path does not exist
         return False
     except ValueError: # Expected if the old value does not match the current value
