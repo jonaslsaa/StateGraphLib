@@ -1,6 +1,7 @@
 import pytest
 from pydantic import BaseModel
 from ..StateNode import StateNode, pydantic_deep_eq
+from ..example import CustomStateNodeWithInitArgs
 
 class TestNode(StateNode):
     class State(BaseModel):
@@ -124,7 +125,7 @@ def test_state_node_set_state_modes():
     assert child._notified
 
 def test_custom_state_node_with_init_args():
-    node = CustomStateNodeWithInitArgs.from_defaults({'my_argument': 'Hello'})
+    node = CustomStateNodeWithInitArgs.from_defaults(node_init_args={'my_argument': 'Hello'})
     assert node.my_argument == 'Hello'
 
 if __name__ == "__main__":
