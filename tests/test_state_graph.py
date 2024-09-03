@@ -128,5 +128,64 @@ def test_next_batch():
     batch = graph.next_batch()
     assert batch == {child1, child2}
 
+def test_empty_graph():
+    graph = StateGraph()
+    assert len(graph.nodes) == 0
+    assert graph.next_batch() == set()
+
+def test_single_node_graph():
+    TestNode = create_test_node()
+    graph = StateGraph()
+    node = TestNode.from_defaults()
+    graph._add_node(node)
+    assert len(graph.nodes) == 1
+    graph.notify_all()
+    assert graph.next_batch() == {node}
+
+def test_complex_hierarchy():
+    TestNode = create_test_node()
+    graph = StateGraph()
+    root = TestNode.from_defaults()
+    child1 = TestNode.from_defaults()
+    child2 = TestNode.from_defaults()
+    grandchild1 = TestNode.from_defaults()
+    grandchild2 = TestNode.from_defaults()
+
+    graph.connect(root, child1)
+    graph.connect(root, child2)
+    graph.connect(child1, grandchild1)
+    graph.connect(child2, grandchild2)
+
+    graph.notify_all()
+    assert graph.next_batch() == {root}
+    
+    for node in graph.next_batch():
+        node.process()
+    
+    assert graph.next_batch() == {child1, child2}
+
+def test_error_conditions():
+    TestNode = create_test_node()
+    graph = StateGraph()
+    node1 = TestNode.from_defaults()
+    node2 = TestNode.from_defaults()
+
+    # Test connecting a node to itself
+    with pytest.raises(AssertionError):
+        graph.connect(node1, node1)
+
+    # Test connecting the same nodes twice
+    graph.connect(node1, node2)
+    graph.connect(node1, node2)  # This should not raise an error, but also should not create a duplicate connection
+    assert len(node1._children) == 1
+    assert len(node2._parents) == 1
+
+    # Test getting a non-existent node type
+    class NonExistentNode(StateNode):
+        pass
+
+    assert graph.get_node(NonExistentNode) is None
+    assert graph.get_nodes(NonExistentNode) == []
+
 if __name__ == "__main__":
     pytest.main()
