@@ -126,33 +126,15 @@ def validate_mutation(old_model: BaseModel, mutation: StateMutation, ignore_old_
         # Create a copy of the model to avoid modifying the original
         model_copy = old_model.model_copy(deep=True)
         
-        # Traverse to the parent of the attribute to change
-        value = model_copy
-        for p in mutation.path[:-1]:
-            value = getattr(value, p)
-        
-        # Get the field info
-        field = value.model_fields[mutation.path[-1]]
-        
-        # Deserialize the new value
-        new_value = _deserialize(mutation.new_value)
-        
-        # Validate the new value against the field type
-        field.validate(new_value, {})
-        
-        # If we got here, the new value is valid for the field
-        # Now try to apply the mutation
+        # Apply the mutation
         apply_mutation(model_copy, mutation, ignore_old_value=ignore_old_value)
         
         # Validate the entire model after applying the mutation
         model_copy.model_validate(model_copy.model_dump())
-    except (AttributeError, KeyError): # Expected if the path does not exist
+        
+        return True
+    except (AttributeError, KeyError, ValueError, pydantic.ValidationError):
         return False
-    except ValueError: # Expected if the old value does not match the current value
-        return False
-    except pydantic.ValidationError: # Expected if the new value is not valid for the field
-        return False
-    return True
 
 
 # Example usage
