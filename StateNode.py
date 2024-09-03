@@ -88,7 +88,7 @@ class StateNode(ABC):
         '''
         This method validates the state of the node. Throws ValidationError if the state is invalid.
         '''
-        self._state.model_validate(self._state.dict())
+        self._state.model_validate(self._state.model_dump())
         
     def process(self):
         '''
@@ -200,7 +200,7 @@ class StateNode(ABC):
         '''
         # assert that all arguments are provided
         node = cls(**node_init_args)
-        return node.load_from_dict({})
+        return node.load_from_dict(cls.State().model_dump())
         
     
     @abstractmethod
