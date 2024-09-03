@@ -2,18 +2,22 @@ import pytest
 from pydantic import BaseModel
 from ..StateGraph import StateGraph, StateNode, CycleDetectedError
 
-class TestNode(StateNode):
-    class State(BaseModel):
-        value: int = 0
+def create_test_node():
+    class TestNode(StateNode):
+        class State(BaseModel):
+            value: int = 0
 
-    def on_notify(self):
-        pass
+        def on_notify(self):
+            pass
+
+    return TestNode
 
 def test_state_graph_initialization():
     graph = StateGraph()
     assert len(graph.nodes) == 0
 
 def test_add_node():
+    TestNode = create_test_node()
     graph = StateGraph()
     node = TestNode.from_defaults()
     graph._add_node(node)
@@ -21,6 +25,7 @@ def test_add_node():
     assert node in graph.nodes
 
 def test_connect_nodes():
+    TestNode = create_test_node()
     graph = StateGraph()
     parent = TestNode.from_defaults()
     child = TestNode.from_defaults()
@@ -30,6 +35,7 @@ def test_connect_nodes():
     assert len(graph.nodes) == 2
 
 def test_connect_nodes_cycle_detection():
+    TestNode = create_test_node()
     graph = StateGraph()
     node1 = TestNode.from_defaults()
     node2 = TestNode.from_defaults()
@@ -42,6 +48,7 @@ def test_connect_nodes_cycle_detection():
         graph.connect(node3, node1)
 
 def test_connect_nodes_allow_cycle():
+    TestNode = create_test_node()
     graph = StateGraph()
     node1 = TestNode.from_defaults()
     node2 = TestNode.from_defaults()
@@ -53,6 +60,7 @@ def test_connect_nodes_allow_cycle():
     assert node1 in node2._children
 
 def test_notify_all():
+    TestNode = create_test_node()
     class NotifyTestNode(TestNode):
         class State(BaseModel):
             value: int = 0
@@ -71,6 +79,7 @@ def test_notify_all():
     assert node2._notified
 
 def test_get_node():
+    TestNode = create_test_node()
     graph = StateGraph()
     node1 = TestNode.from_defaults()
     node2 = TestNode.from_defaults()
@@ -80,6 +89,7 @@ def test_get_node():
     assert graph.get_node(TestNode) in [node1, node2]
 
 def test_get_nodes():
+    TestNode = create_test_node()
     graph = StateGraph()
     node1 = TestNode.from_defaults()
     node2 = TestNode.from_defaults()
@@ -89,6 +99,7 @@ def test_get_nodes():
     assert set(graph.get_nodes(TestNode)) == {node1, node2}
 
 def test_next_batch():
+    TestNode = create_test_node()
     class BatchTestNode(TestNode):
         class State(BaseModel):
             value: int = 0
