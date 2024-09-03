@@ -10,7 +10,7 @@ from pprint import pprint
 
 class TicketNode(StateNode):
     class State(BaseModel):
-        content: str
+        content: str = ""
 
     def on_notify(self):
         # This node doesn't do anything on notify
