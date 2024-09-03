@@ -66,10 +66,8 @@ class StateGraph:
         if parent == child:
             return True
         visited.add(parent)
-        for node in parent._children:
-            if node in visited:
-                continue
-            if self._check_cycle(node, child, visited):
+        for node in parent._parents:
+            if self._check_cycle(node, child, visited.copy()):
                 return True
         return False
 

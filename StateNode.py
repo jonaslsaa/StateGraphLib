@@ -88,7 +88,7 @@ class StateNode(ABC):
         '''
         This method validates the state of the node. Throws ValidationError if the state is invalid.
         '''
-        self._state.model_validate(self._state.dict())
+        self._state.model_validate(self._state.model_dump())
         
     def process(self):
         '''
@@ -185,6 +185,7 @@ class StateNode(ABC):
         Loads the node from a serialized JSON string.
         '''
         self._state = self.State.model_validate_json(serialized_data)
+        self._prev_state = self._state.model_copy(deep=True)
         return self
 
     def load_from_dict(self, data: dict):
@@ -192,6 +193,7 @@ class StateNode(ABC):
         Loads the node from a dictionary.
         '''
         self._state = self.State.model_validate(data)
+        self._prev_state = self._state.model_copy(deep=True)
         return self
     
     @classmethod
