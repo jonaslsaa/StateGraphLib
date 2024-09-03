@@ -124,10 +124,28 @@ def validate_mutation(old_model: BaseModel, mutation: StateMutation, ignore_old_
     '''
     # Try to apply the mutation
     try:
-        apply_mutation(old_model, mutation, ignore_old_value=ignore_old_value)
-    except AttributeError: # Expected if the path does not exist
+        # Create a copy of the model to avoid modifying the original
+        model_copy = old_model.model_copy(deep=True)
+        
+        # Traverse to the parent of the attribute to change
+        value = model_copy
+        for p in mutation.path[:-1]:
+            value = getattr(value, p)
+        
+        # Get the field info
+        field = value.model_fields[mutation.path[-1]]
+        
+        # Validate the new value against the field type
+        field.validate(json.loads(mutation.new_value.value), {})
+        
+        # If we got here, the new value is valid for the field
+        # Now try to apply the mutation
+        apply_mutation(model_copy, mutation, ignore_old_value=ignore_old_value)
+    except (AttributeError, KeyError): # Expected if the path does not exist
         return False
     except ValueError: # Expected if the old value does not match the current value
+        return False
+    except pydantic.ValidationError: # Expected if the new value is not valid for the field
         return False
     return True
 
