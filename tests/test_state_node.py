@@ -141,5 +141,28 @@ def test_custom_state_node_with_init_args():
     node = CustomStateNodeWithInitArgs.from_defaults(node_init_args={'my_argument': 'Hello'})
     assert node.my_argument == 'Hello'
 
+def test_custom_state_node_without_defaults():
+    class CustomNode(StateNode):
+        class State(BaseModel):
+            required_value: int
+            optional_value: str = "default"
+
+        def on_notify(self):
+            pass
+
+    # Test initialization with all required values
+    node = CustomNode.from_dict({"required_value": 42})
+    assert node.state().required_value == 42
+    assert node.state().optional_value == "default"
+
+    # Test initialization with all values
+    node = CustomNode.from_dict({"required_value": 42, "optional_value": "custom"})
+    assert node.state().required_value == 42
+    assert node.state().optional_value == "custom"
+
+    # Test initialization without required value (should raise an error)
+    with pytest.raises(pydantic.ValidationError):
+        CustomNode.from_dict({})
+
 if __name__ == "__main__":
     pytest.main()
