@@ -187,5 +187,63 @@ def test_error_conditions():
     assert graph.get_node(NonExistentNode) is None
     assert graph.get_nodes(NonExistentNode) == []
 
+def test_disconnected_nodes():
+    TestNode = create_test_node()
+    graph = StateGraph()
+    node1 = TestNode.from_defaults()
+    node2 = TestNode.from_defaults()
+    graph._add_node(node1)
+    graph._add_node(node2)
+    graph.notify_all()
+    assert graph.next_batch() == {node1, node2}
+
+def test_multiple_parents():
+    TestNode = create_test_node()
+    graph = StateGraph()
+    parent1 = TestNode.from_defaults()
+    parent2 = TestNode.from_defaults()
+    child = TestNode.from_defaults()
+    graph.connect(parent1, child)
+    graph.connect(parent2, child)
+    graph.notify_all()
+    assert graph.next_batch() == {parent1, parent2}
+    for node in graph.next_batch():
+        node.process()
+    assert graph.next_batch() == {child}
+
+def test_deep_hierarchy():
+    TestNode = create_test_node()
+    graph = StateGraph()
+    nodes = [TestNode.from_defaults() for _ in range(10)]
+    for i in range(9):
+        graph.connect(nodes[i], nodes[i+1])
+    graph.notify_all()
+    for i in range(10):
+        batch = graph.next_batch()
+        assert len(batch) == 1
+        assert nodes[i] in batch
+        for node in batch:
+            node.process()
+
+def test_diamond_structure():
+    TestNode = create_test_node()
+    graph = StateGraph()
+    top = TestNode.from_defaults()
+    left = TestNode.from_defaults()
+    right = TestNode.from_defaults()
+    bottom = TestNode.from_defaults()
+    graph.connect(top, left)
+    graph.connect(top, right)
+    graph.connect(left, bottom)
+    graph.connect(right, bottom)
+    graph.notify_all()
+    assert graph.next_batch() == {top}
+    for node in graph.next_batch():
+        node.process()
+    assert graph.next_batch() == {left, right}
+    for node in graph.next_batch():
+        node.process()
+    assert graph.next_batch() == {bottom}
+
 if __name__ == "__main__":
     pytest.main()
