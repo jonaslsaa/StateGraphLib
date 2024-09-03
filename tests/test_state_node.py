@@ -1,6 +1,6 @@
 import pytest
 from pydantic import BaseModel
-from StateNode import StateNode, pydantic_deep_eq
+from ..StateNode import StateNode, pydantic_deep_eq
 
 class TestNode(StateNode):
     class State(BaseModel):
