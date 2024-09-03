@@ -8,7 +8,7 @@ from collections import deque
 from .common import NodeNotFoundError
 
 def pydantic_deep_eq(a: BaseModel, b: BaseModel) -> bool:
-    return a.dict() == b.dict()
+    return a.model_dump() == b.model_dump()
 
 class StateNode(ABC):
     
@@ -88,7 +88,7 @@ class StateNode(ABC):
         '''
         This method validates the state of the node. Throws ValidationError if the state is invalid.
         '''
-        self._state.validate(self._state.dict())
+        self._state.model_validate(self._state.model_dump())
         
     def process(self):
         '''
