@@ -1,5 +1,5 @@
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from ..StateNode import StateNode, pydantic_deep_eq
 from ..example import CustomStateNodeWithInitArgs
 
@@ -161,7 +161,7 @@ def test_custom_state_node_without_defaults():
     assert node.state().optional_value == "custom"
 
     # Test initialization without required value (should raise an error)
-    with pytest.raises(pydantic.ValidationError):
+    with pytest.raises(ValidationError):
         CustomNode.from_dict({})
 
 if __name__ == "__main__":
