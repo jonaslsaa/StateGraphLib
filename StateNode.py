@@ -30,8 +30,8 @@ class StateNode(ABC):
         '''
         self._parents: Set[StateNode] = set()
         self._children: Set[StateNode] = set()
-        self._state: self.State = None
-        self._prev_state: self.State = None
+        self._state: self.State = self.State()
+        self._prev_state: self.State = self.State()
         self._notified: bool = False
         self.post_init()
     
@@ -99,15 +99,13 @@ class StateNode(ABC):
         if not self._notified:
             return
         # Copy the state to check if it has changed
-        state_copy = self._state.model_copy(deep=True)
+        self._prev_state = self._state.model_copy(deep=True)
         # Process, which may change the state
         self.on_notify()
         # Check if the state has changed
-        if len(self._children) > 0 and not pydantic_deep_eq(self._state, state_copy):
+        if len(self._children) > 0 and not pydantic_deep_eq(self._state, self._prev_state):
             # Notify children as their parent has changed
             self._notify_children()
-            # Save the previous state
-            self._prev_state = state_copy
         # Validate the state
         self.validate_state()
         # Reset notified flag

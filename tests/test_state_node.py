@@ -10,6 +10,10 @@ class TestNode(StateNode):
     def on_notify(self):
         self.state().value += 1
 
+    @classmethod
+    def from_defaults(cls):
+        return cls().load_from_dict({"value": 0})
+
 class ParentNode(StateNode):
     class State(BaseModel):
         value: str = ""
