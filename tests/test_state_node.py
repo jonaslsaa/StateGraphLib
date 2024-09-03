@@ -123,5 +123,9 @@ def test_state_node_set_state_modes():
     parent.set_state(TestNodeWithChildren.State(value=3), StateNode.SetStateMode.DEEP_COMPARE)
     assert child._notified
 
+def test_custom_state_node_with_init_args():
+    node = CustomStateNodeWithInitArgs.from_defaults({'my_argument': 'Hello'})
+    assert node.my_argument == 'Hello'
+
 if __name__ == "__main__":
     pytest.main()
