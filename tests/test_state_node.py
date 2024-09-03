@@ -3,16 +3,19 @@ from pydantic import BaseModel
 from ..StateNode import StateNode, pydantic_deep_eq
 from ..example import CustomStateNodeWithInitArgs
 
-class TestNode(StateNode):
-    class State(BaseModel):
-        value: int = 0
+def create_test_node_class():
+    class TestNode(StateNode):
+        class State(BaseModel):
+            value: int = 0
 
-    def on_notify(self):
-        self.state().value += 1
+        def on_notify(self):
+            self.state().value += 1
 
-    @classmethod
-    def from_defaults(cls):
-        return cls().load_from_dict({"value": 0})
+        @classmethod
+        def from_defaults(cls):
+            return cls().load_from_dict({"value": 0})
+    
+    return TestNode
 
 class ParentNode(StateNode):
     class State(BaseModel):
@@ -30,27 +33,32 @@ class ChildNode(StateNode):
         self.state().value = parent.state().value + "_child"
 
 def test_state_node_initialization():
+    TestNode = create_test_node_class()
     node = TestNode.from_defaults()
     assert node.state().value == 0
 
 def test_state_node_process():
+    TestNode = create_test_node_class()
     node = TestNode.from_defaults()
     node.notify()
     node.process()
     assert node.state().value == 1
 
 def test_state_node_serialization():
+    TestNode = create_test_node_class()
     node = TestNode.from_dict({"value": 5})
     serialized = node.serialize()
     new_node = TestNode.from_serialized(serialized)
     assert new_node.state().value == 5
 
 def test_state_node_set_state():
+    TestNode = create_test_node_class()
     node = TestNode.from_defaults()
     node.set_state(TestNode.State(value=10))
     assert node.state().value == 10
 
 def test_state_node_apply_change():
+    TestNode = create_test_node_class()
     node = TestNode.from_defaults()
     node.state().value = 20
     node.apply_change()
@@ -90,6 +98,7 @@ def test_pydantic_deep_eq():
     assert not pydantic_deep_eq(model1, model3)
 
 def test_state_node_prev_state():
+    TestNode = create_test_node_class()
     node = TestNode.from_defaults()
     node.notify()
     node.process()
