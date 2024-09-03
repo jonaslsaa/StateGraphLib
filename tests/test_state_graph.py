@@ -1,8 +1,9 @@
 import pytest
+from pydantic import BaseModel
 from ..StateGraph import StateGraph, StateNode, CycleDetectedError
 
 class TestNode(StateNode):
-    class State:
+    class State(BaseModel):
         value: int = 0
 
     def on_notify(self):
@@ -53,6 +54,9 @@ def test_connect_nodes_allow_cycle():
 
 def test_notify_all():
     class NotifyTestNode(TestNode):
+        class State(BaseModel):
+            value: int = 0
+
         def on_notify(self):
             self.state().value += 1
 
@@ -86,6 +90,9 @@ def test_get_nodes():
 
 def test_next_batch():
     class BatchTestNode(TestNode):
+        class State(BaseModel):
+            value: int = 0
+
         def on_notify(self):
             self.state().value += 1
 
