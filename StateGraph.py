@@ -45,9 +45,9 @@ class StateGraph:
         assert isinstance(child, StateNode), "Child must be a subclass of StateNode"
         
         # Check if this addition will create a cycle
-        has_cycle = self._check_cycle(parent, child, set())
+        has_cycle = self._check_cycle(child, parent)
         if has_cycle and not allow_cycle:
-            raise CycleDetectedError("You can allow cycles by setting allow_cycle=True - but ensure there are at least one root node.")
+            raise CycleDetectedError("You can allow cycles by setting allow_cycle=True - but ensure there is at least one root node.")
         
         # Connect the nodes
         parent._children.add(child)
@@ -62,15 +62,17 @@ class StateGraph:
         self.nodes.add(node)
         return self
     
-    def _check_cycle(self, parent: StateNode, child: StateNode, visited: Set[StateNode]):
-        if parent == child:
-            return True
-        visited.add(parent)
-        for node in parent._children:
+    def _check_cycle(self, start: StateNode, end: StateNode):
+        stack = [(start, set())]
+        while stack:
+            node, visited = stack.pop()
+            if node == end:
+                return True
             if node in visited:
                 continue
-            if self._check_cycle(node, child, visited):
-                return True
+            visited.add(node)
+            for child in node._children:
+                stack.append((child, visited.copy()))
         return False
 
     def notify_all(self):
