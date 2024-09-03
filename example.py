@@ -10,11 +10,15 @@ from pprint import pprint
 
 class TicketNode(StateNode):
     class State(BaseModel):
-        content: str
+        content: str = ""  # Add a default empty string
 
     def on_notify(self):
         # This node doesn't do anything on notify
         pass
+
+    @classmethod
+    def from_defaults(cls):
+        return cls.from_dict({'content': 'Default ticket content'})
 
 class WeatherNode(StateNode):
     class State(BaseModel):
