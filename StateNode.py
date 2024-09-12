@@ -1,6 +1,6 @@
 from collections import defaultdict
 from enum import Enum
-from typing import List, Dict, Literal, TypeVar, Union, Set
+from typing import Any, Callable, List, Dict, Literal, TypeVar, Union, Set
 from abc import ABC, abstractmethod
 from pydantic import BaseModel
 from collections import deque
@@ -76,6 +76,56 @@ class StateNode(ABC):
     
     def prev_state(self) -> State:
         return self._prev_state
+    
+    def has_changed(self, state_property: Callable[['State'], Any] | str | List[str]) -> bool:
+        '''
+        Returns True if property of the state has changed based on the previous state, False otherwise.
+        @example
+        ```
+        if node.has_changed("property"):
+            # Property has changed
+        ```
+        or
+        ```
+        if node.has_changed(["first", "second"]):
+            # node.first.second has changed
+        ```
+        or
+        ```
+        if node.has_changed(lambda state: state.property):
+            # Property has changed
+        ```
+        '''
+        if callable(state_property):
+            getter: Callable[[self.State], Any] = state_property
+            # Get the current and previous values
+            current_value = getter(self.state())
+            if self.prev_state() is None:
+                raise ValueError("No previous state to compare, node has not been initialized correctly. Use load_from_serialized, load_from_dict or from_defaults instead.")
+            prev_value = getter(self.prev_state())
+            # Check if the values are equal
+            # If the value inherits from BaseModel, use deep comparison
+            if isinstance(current_value, BaseModel):
+                return not pydantic_deep_eq(current_value, prev_value)
+            # Otherwise, use normal comparison
+            return current_value != prev_value
+        # If the property is a string or a list of strings
+        # Convert the string to a list
+        if isinstance(state_property, str):
+            state_property = state_property.split(".")
+        # Traverse the state to get the value
+        if isinstance(state_property, list):
+            state = self.state()
+            prev_state = self.prev_state()
+            for prop in state_property:
+                state = getattr(state, prop)
+                prev_state = getattr(prev_state, prop)
+            # If the value inherits from BaseModel, use deep comparison
+            if isinstance(state, BaseModel):
+                return not pydantic_deep_eq(state, prev_state)
+            # Otherwise, use normal comparison
+            return state != prev_state
+        raise ValueError("state_property should be a callable or a string")
     
     def serialize(self):
         '''

@@ -164,5 +164,65 @@ def test_custom_state_node_without_defaults():
     with pytest.raises(ValidationError):
         CustomNode.from_dict({})
 
+def test_has_changed():
+    class NestedState(BaseModel):
+        a: int = 1
+        b: int = 2
+    class TestNode(StateNode):
+        class State(BaseModel):
+            value: int = 0
+            nested: NestedState = NestedState()
+            list_value: list = [1, 2, 3]
+
+        def on_notify(self):
+            pass
+    
+    def notify_and_process():
+        # This will notify and process the node, important to update the prev_state
+        node.notify()
+        node.process()
+
+    # Test simple property change
+    node = TestNode.from_defaults()
+    node.state().value = 1 # Change value from 0 to 1
+    notify_and_process()
+    assert node.has_changed("value")
+    assert not node.has_changed("nested")
+
+    # Test nested property change
+    node = TestNode.from_defaults()
+    node.state().nested.a = 2
+    notify_and_process()
+    assert node.has_changed(["nested", "a"])
+    assert not node.has_changed(["nested", "b"])
+
+    # Test list change
+    node = TestNode.from_defaults()
+    node.state().list_value.append(4)
+    notify_and_process()
+    assert node.has_changed("list_value")
+
+    # Test lambda function
+    node = TestNode.from_defaults()
+    node.state().value = 2
+    notify_and_process()
+    assert node.has_changed(lambda s: s.value)
+    assert not node.has_changed(lambda s: s.nested.a)
+
+    # Test invalid property
+    with pytest.raises(AttributeError):
+        node.has_changed("non_existent_property")
+
+    # Test invalid type
+    with pytest.raises(ValueError):
+        node.has_changed(123)
+
+    # Test no change
+    node = TestNode.from_defaults()
+    node._prev_state = node.state().model_copy(deep=True)
+    assert not node.has_changed("value")
+    assert not node.has_changed(["nested", "a"])
+    assert not node.has_changed("list_value")
+
 if __name__ == "__main__":
     pytest.main()
