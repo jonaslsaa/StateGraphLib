@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "StateGraphLib"
+version = "0.0.0"
+description = "StateGraphLib is a minimalistic Python library that manages and processes stateful nodes within a directed acyclic graph (DAG)."
+authors = ["Jonas Silva <jonaslsa@uio.no>"]
+packages = [
+    { include = "StateGraphLib", from = ".." }
+]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
