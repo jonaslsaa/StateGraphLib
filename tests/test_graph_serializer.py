@@ -6,6 +6,7 @@ from ..graph_serializer import GraphSerializer, SerializedGraph, SerializedNode
 from ..StateGraph import StateGraph
 from ..StateNode import StateNode
 from ..exceptions import VersionMismatchError, UnknownNodeError
+from ..example import CustomStateNodeWithInitArgs
 
 class TicketNode(StateNode):
     class State(BaseModel):
@@ -113,6 +114,104 @@ class TestGraphSerializer(unittest.TestCase):
 
         self.assertIsInstance(deserialized_graph, StateGraph)
         self.assertEqual(len(deserialized_graph.nodes), 3)
+
+    def test_notified_serialization(self):
+        # Notify all nodes
+        self.graph.notify_all()
+        
+        serialized_graph = GraphSerializer.serialize(self.graph)
+        
+        # Check if all nodes are marked as notified in the serialized graph
+        for node in serialized_graph.nodes:
+            self.assertTrue(node.notified, f"Node {node.id} is not marked as notified")
+        
+        # Deserialize the graph
+        deserialized_graph = GraphSerializer.deserialize(
+            serialized_graph,
+            {TicketNode, WeatherNode, FactsNode}
+        )
+        
+        # Check if all nodes are still marked as notified in the deserialized graph
+        for node in deserialized_graph.nodes:
+            self.assertTrue(node._notified, f"Node {type(node).__name__} after deserialization is not notified")
+
+    def test_prev_state_serialization(self):
+        ticket_node = self.graph.get_node(TicketNode)
+        # Assert ticket node content
+        self.assertEqual(ticket_node.state().content, 'Hello, can you help me?')
+        # Change the state of a node to create a prev_state
+        ticket_node.state().content = "Updated content"
+        ticket_node.apply_change()
+        self.assertEqual(ticket_node.state().content, "Updated content")
+        # Process the node
+        ticket_node.notify()
+        ticket_node.process() # Previous state is set here
+    
+        serialized_graph = GraphSerializer.serialize(self.graph)
+        
+        # Find the serialized ticket node
+        serialized_ticket_node = next(node for node in serialized_graph.nodes if node.class_name == ticket_node.__class__.__name__)
+        
+        # Check if prev_serialized_state is not empty
+        self.assertNotEqual(serialized_ticket_node.prev_serialized_state, "")
+        
+        # Deserialize the graph
+        deserialized_graph = GraphSerializer.deserialize(
+            serialized_graph,
+            {TicketNode, WeatherNode, FactsNode}
+        )
+        
+        # Find the deserialized ticket node
+        deserialized_ticket_node = deserialized_graph.get_node(TicketNode)
+        
+        # Check if prev_state is correctly deserialized
+        self.assertIsNotNone(deserialized_ticket_node._prev_state)
+        self.assertEqual(deserialized_ticket_node._prev_state.content, "Hello, can you help me?", "Prev state is not correctly deserialized")
+
+    def test_serialize_deserialize_with_custom_node(self):
+        custom_node = CustomStateNodeWithInitArgs.from_defaults({'my_argument': 'Test'})
+        self.graph.connect(self.ticket_node, custom_node)
+
+        serialized_graph = GraphSerializer.serialize(self.graph)
+        deserialized_graph = GraphSerializer.deserialize(
+            serialized_graph,
+            {TicketNode, WeatherNode, FactsNode, CustomStateNodeWithInitArgs},
+            node_init_args={CustomStateNodeWithInitArgs: {'my_argument': 'Test'}}
+        )
+
+        self.assertEqual(len(deserialized_graph.nodes), 4)
+        custom_node_deserialized = next(node for node in deserialized_graph.nodes if isinstance(node, CustomStateNodeWithInitArgs))
+        self.assertEqual(custom_node_deserialized.my_argument, 'Test')
+
+    def test_serialize_deserialize_with_changed_state(self):
+        self.ticket_node.state().content = "Updated content"
+        self.ticket_node.apply_change()
+        self.weather_node.state().weather = 'rainy'
+        self.weather_node.apply_change()
+
+        serialized_graph = GraphSerializer.serialize(self.graph)
+        deserialized_graph = GraphSerializer.deserialize(
+            serialized_graph,
+            {TicketNode, WeatherNode, FactsNode}
+        )
+
+        deserialized_ticket_node = next(node for node in deserialized_graph.nodes if isinstance(node, TicketNode))
+        deserialized_weather_node = next(node for node in deserialized_graph.nodes if isinstance(node, WeatherNode))
+
+        self.assertEqual(deserialized_ticket_node.state().content, "Updated content")
+        self.assertEqual(deserialized_weather_node.state().weather, 'rainy')
+
+    def test_serialize_deserialize_preserves_connections(self):
+        serialized_graph = GraphSerializer.serialize(self.graph)
+        deserialized_graph = GraphSerializer.deserialize(
+            serialized_graph,
+            {TicketNode, WeatherNode, FactsNode}
+        )
+
+        deserialized_facts_node = next(node for node in deserialized_graph.nodes if isinstance(node, FactsNode))
+        self.assertEqual(len(deserialized_facts_node._parents), 2)
+        self.assertTrue(any(isinstance(parent, TicketNode) for parent in deserialized_facts_node._parents))
+        self.assertTrue(any(isinstance(parent, WeatherNode) for parent in deserialized_facts_node._parents))
 
 if __name__ == '__main__':
     unittest.main()
