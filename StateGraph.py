@@ -75,8 +75,8 @@ class StateGraph:
         '''
         Notifies all nodes. This is useful when initializing a new graph.
         '''
-        for root in self.nodes:
-            root.notify()
+        for node in self.nodes:
+            node.notify()
         return self
     
     def get_node(self, node_class: Type[StateNode]) -> Union[StateNode, None]:
