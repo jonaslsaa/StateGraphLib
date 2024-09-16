@@ -86,6 +86,8 @@ class GraphSerializer:
                     raise DeserializationError(f"Error deserializing node {serialized_node.id}: {e}")
                 # Reinitialize the node
                 node = node_class.from_defaults(current_node_init_args)
+                # From the perspective of the node, all its parents have non-default states, so we'll need to notify it
+                node.notify()
                 
             # Add the node to the dictionary
             id_to_node[serialized_node.id] = node
