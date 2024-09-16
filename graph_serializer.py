@@ -15,6 +15,8 @@ class SerializedNode(BaseModel):
     class_name: str
     version: StrOrInt
     serialized_state: str
+    prev_serialized_state: str = ""
+    notified: bool = False
     
     def __hash__(self) -> int:
         return hash(self.id) + hash(self.class_name) + hash(self.version) + hash(self.serialized_state)
@@ -24,6 +26,29 @@ class SerializedGraph(BaseModel):
     connections: Set[Tuple[StrOrInt, StrOrInt]]
 
 class GraphSerializer:
+    
+    @staticmethod
+    def _serialize_node(node: StateNode, node_id: int) -> SerializedNode:
+        return SerializedNode(id=node_id,
+                                class_name=type(node).__name__,
+                                version=node.VERSION,
+                                serialized_state=node.state().model_dump_json(),
+                                prev_serialized_state=node._prev_state.model_dump_json(),
+                                notified=node._notified)
+    @staticmethod
+    def _deserialize_node(node_class: Type[StateNode], serialized_node: SerializedNode, node_init_args: MappedArgumentsOrArgs) -> StateNode:
+        try:
+            # De-serialize the node state (with init args if applicable), return the node
+            node = node_class.from_serialized(serialized_node.serialized_state, node_init_args=node_init_args)
+        except (ValidationError, TypeError, JSONDecodeError) as e:
+            raise DeserializationError(f"Failed to deserialize state for node {serialized_node.id}: {e}") from e
+        # De-serialize the rest of the node we care about
+        node.VERSION = serialized_node.version
+        node._notified = serialized_node.notified
+        # If prev state is set, deserialize it and validate it
+        if serialized_node.prev_serialized_state:
+            node._prev_state = node.state().model_validate_json(serialized_node.prev_serialized_state)
+        return node
     
     @staticmethod
     def serialize(graph: StateGraph) -> SerializedGraph:
@@ -36,11 +61,7 @@ class GraphSerializer:
             id_counter += 1
             node_id = id_counter
             node_to_id[node] = node_id
-            nodes.add(SerializedNode(id=node_id,
-                                        class_name=type(node).__name__,
-                                        version=node.VERSION,
-                                        serialized_state=node.state().model_dump_json())
-                    )
+            nodes.add(GraphSerializer._serialize_node(node, node_id))
         
         # Serialize the connections
         for node in graph.nodes:
@@ -75,15 +96,19 @@ class GraphSerializer:
                     raise VersionMismatchError(f"Version mismatch for node {serialized_node.id}. Expected {node_class.VERSION}, got {serialized_node.version}")
                 # Reinitialize the node
                 node = node_class.from_defaults(current_node_init_args)
-                # Then, still try to deserialize the state, this will likely fail but that's okay.
+                # Notify the node that it has been reinitialized
+                node.notify()
+                id_to_node[serialized_node.id] = node
+                continue
             
             # Deserialize the node
             try:
-                node = node_class.from_serialized(serialized_node.serialized_state, node_init_args=current_node_init_args)
-            except (ValidationError, TypeError, JSONDecodeError) as e:
+                node = GraphSerializer._deserialize_node(node_class, serialized_node, current_node_init_args)
+            except DeserializationError as e:
                 # If the node cannot be deserialized, we can either skip it or reinitialize it
                 if not reinitialize_on_error:
-                    raise DeserializationError(f"Error deserializing node {serialized_node.id}: {e}")
+                    # Re-raise the error
+                    raise e
                 # Reinitialize the node
                 node = node_class.from_defaults(current_node_init_args)
                 # From the perspective of the node, all its parents have non-default states, so we'll need to notify it
@@ -178,4 +203,3 @@ if __name__ == "__main__":
     # Test reinitialize on error
     deserialized_graph = GraphSerializer.deserialize(serialized_graph, {TestNode}, reinitialize_on_error=True)
     print("Deserialized graph with reinitialize on error:")
-    
