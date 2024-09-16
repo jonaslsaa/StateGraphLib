@@ -29,6 +29,8 @@ def nodeset_get_notified(nodes: Set[StateNode]):
     '''
     return {node for node in nodes if node._notified}
 
+TStateNode = TypeVar("TStateNode", bound=StateNode)
+
 class StateGraph:
     def __init__(self):
         self.nodes: Set[StateNode] = set()
@@ -79,7 +81,7 @@ class StateGraph:
             node.notify()
         return self
     
-    def get_node(self, node_class: Type[StateNode]) -> Union[StateNode, None]:
+    def get_node(self, node_class: Type[TStateNode]) -> Union[TStateNode, None]:
         '''
         Returns the first node found of the given class.
         '''
@@ -88,7 +90,7 @@ class StateGraph:
                 return node
         return None
 
-    def get_nodes(self, node_class: Type[StateNode]) -> List[StateNode]:
+    def get_nodes(self, node_class: Type[TStateNode]) -> List[TStateNode]:
         '''
         Returns a list of nodes of the given class.
         '''
