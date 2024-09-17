@@ -183,8 +183,8 @@ class StateNode(ABC):
         '''
         This method should be called when the state of the node has been manually changed. It notifies children and validates the state.
         '''
-        self._notify_children()
         self.validate_state()
+        self._notify_children()
     
     T = TypeVar('T')
     def get_ancestors(self, cls: T, return_only_first: bool = False) -> Union[T, List[T]]:
