@@ -245,5 +245,104 @@ def test_diamond_structure():
         node.process()
     assert graph.next_batch() == {bottom}
 
+def test_prev_state():
+    TestNode = create_test_node()
+    class PrevStateTestNode(TestNode):
+        class State(BaseModel):
+            value: int = 0
+
+        def on_notify(self):
+            self.state().value += 1
+
+    graph = StateGraph()
+    node = PrevStateTestNode.from_defaults()
+    graph._add_node(node)
+    
+    # Initial state
+    assert node.state().value == 0
+    assert node._prev_state.value == 0
+    assert node._prev_state.model_copy() == node.state().model_copy()
+    
+    # After first cycle
+    graph.notify_all()
+    process_graph(graph, auto_finish_cycle=False)
+    assert node.state().value == 1
+    assert node._prev_state.value == 0
+    graph.finish_cycle()
+    assert node._prev_state.model_copy() == node.state().model_copy()
+    
+    # After second cycle
+    graph.notify_all()
+    process_graph(graph, auto_finish_cycle=False)
+    assert node.state().value == 2
+    assert node._prev_state.value == 1
+
+def test_next_batch_and_finish_cycle():
+    TestNode = create_test_node()
+    class BatchTestNode(TestNode):
+        class State(BaseModel):
+            value: int = 0
+
+        def on_notify(self):
+            self.state().value += 1
+
+    graph = StateGraph()
+    root = BatchTestNode.from_defaults()
+    child1 = BatchTestNode.from_defaults()
+    child2 = BatchTestNode.from_defaults()
+    grandchild = BatchTestNode.from_defaults()
+    
+    graph.connect(root, child1)
+    graph.connect(root, child2)
+    graph.connect(child1, grandchild)
+    
+    graph.notify_all()
+    
+    # Process the graph
+    process_graph(graph)
+    
+    # Check states after processing
+    assert root.state().value == 1
+    assert child1.state().value == 1
+    assert child2.state().value == 1
+    assert grandchild.state().value == 1
+    
+    # Check prev_state after finish_cycle
+    graph.finish_cycle()
+    assert root._prev_state.value == 1
+    assert child1._prev_state.value == 1
+    assert child2._prev_state.value == 1
+    assert grandchild._prev_state.value == 1
+    
+    # Start new cycle
+    graph.notify_all()
+    
+    # Process the graph again
+    process_graph(graph, auto_finish_cycle=False)
+    
+    # Check final states
+    assert root.state().value == 2
+    assert child1.state().value == 2
+    assert child2.state().value == 2
+    assert grandchild.state().value == 2
+    
+    # Check prev_states are still from previous cycle
+    assert root._prev_state.value == 1
+    assert child1._prev_state.value == 1
+    assert child2._prev_state.value == 1
+    assert grandchild._prev_state.value == 1
+    
+    # Finish cycle and check prev_states are updated
+    graph.finish_cycle()
+    assert root._prev_state.value == 2
+    assert child1._prev_state.value == 2
+    assert child2._prev_state.value == 2
+    assert grandchild._prev_state.value == 2
+
+def process_graph(graph: StateGraph, auto_finish_cycle=True):
+    while batch := graph.next_batch(auto_finish_cycle=auto_finish_cycle):
+        for node in batch:
+            node.process()
+
 if __name__ == "__main__":
     pytest.main()
