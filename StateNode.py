@@ -140,7 +140,8 @@ class StateNode(ABC):
 
     def validate_state(self):
         '''
-        This method validates the state of the node. Throws ValidationError if the state is invalid.
+        This method validates the state of the node.
+        :raises ValidationError if the state is invalid.
         '''
         self._state.model_validate(self._state.model_dump())
         
@@ -182,6 +183,7 @@ class StateNode(ABC):
     def apply_change(self):
         '''
         This method should be called when the state of the node has been manually changed. It notifies children and validates the state.
+        :raises ValidationError if the state is invalid.
         '''
         self.validate_state()
         self._notify_children()
