@@ -31,7 +31,7 @@ class StateNode(ABC):
         self._parents: Set[StateNode] = set()
         self._children: Set[StateNode] = set()
         self._state: self.State = None
-        self._prev_state: self.State = None
+        self._prev_state: self.State = None # prev_state is used for children nodes to detect spesific changes.
         self._notified: bool = False
         self.post_init()
     
@@ -75,6 +75,10 @@ class StateNode(ABC):
         return self
     
     def prev_state(self) -> State:
+        '''
+        Previous state from last cycle (last run of graph).
+        Use in conjunction with auto_finish_cycle=True for StateGraph.next_batch(), or by manually calling StateGraph.finish_cycle()
+        '''
         return self._prev_state
     
     def has_changed(self, state_property: Callable[['State'], Any] | str | List[str]) -> bool:
@@ -156,8 +160,6 @@ class StateNode(ABC):
         if len(self._children) > 0 and not pydantic_deep_eq(self._state, state_copy):
             # Notify children as their parent has changed
             self._notify_children()
-            # Save the previous state
-            self._prev_state = state_copy
         # Validate the state
         self.validate_state()
         # Reset notified flag

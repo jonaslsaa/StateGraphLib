@@ -45,7 +45,7 @@ class GraphSerializer:
         # De-serialize the rest of the node we care about
         node.VERSION = serialized_node.version
         node._notified = serialized_node.notified
-        # If prev state is set, deserialize it and validate it
+        # If serialized prev state exists, deserialize it and overwrite it
         if serialized_node.prev_serialized_state:
             node._prev_state = node.state().model_validate_json(serialized_node.prev_serialized_state)
         return node
