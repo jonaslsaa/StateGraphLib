@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Any, Callable, List, Dict, Literal, TypeVar, Union, Set
 from abc import ABC, abstractmethod
 from pydantic import BaseModel
+from fastapi.encoders import jsonable_encoder
 from collections import deque
 
 from .common import NodeNotFoundError
@@ -100,6 +101,21 @@ class StateNode(ABC):
             # Property has changed
         ```
         '''
+        
+        def compare_deep(a, b):
+            # Check if the values are equal
+            # Check if their types are the same
+            if type(a) != type(b):
+                return True
+            # If the value inherits from BaseModel, use deep comparison
+            if isinstance(a, BaseModel):
+                return not pydantic_deep_eq(a, b)
+            # If the value is a primitive type, use normal comparison
+            if isinstance(a, (int, float, str, bool, type(None))):
+                return a != b
+            # Otherwise try to use json comparison
+            return jsonable_encoder(a) != jsonable_encoder(b)
+        
         if callable(state_property):
             getter: Callable[[self.State], Any] = state_property
             # Get the current and previous values
@@ -107,12 +123,7 @@ class StateNode(ABC):
             if self.prev_state() is None:
                 raise ValueError("No previous state to compare, node has not been initialized correctly. Use load_from_serialized, load_from_dict or from_defaults instead.")
             prev_value = getter(self.prev_state())
-            # Check if the values are equal
-            # If the value inherits from BaseModel, use deep comparison
-            if isinstance(current_value, BaseModel):
-                return not pydantic_deep_eq(current_value, prev_value)
-            # Otherwise, use normal comparison
-            return current_value != prev_value
+            return compare_deep(current_value, prev_value)
         # If the property is a string or a list of strings
         # Convert the string to a list
         if isinstance(state_property, str):
@@ -124,11 +135,7 @@ class StateNode(ABC):
             for prop in state_property:
                 state = getattr(state, prop)
                 prev_state = getattr(prev_state, prop)
-            # If the value inherits from BaseModel, use deep comparison
-            if isinstance(state, BaseModel):
-                return not pydantic_deep_eq(state, prev_state)
-            # Otherwise, use normal comparison
-            return state != prev_state
+            return compare_deep(state, prev_state)
         raise ValueError("state_property should be a callable or a string")
     
     def serialize(self):
