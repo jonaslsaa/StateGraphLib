@@ -124,5 +124,5 @@ class StateGraph:
     def finish_cycle(self):
         # Set all nodes's _prev_state to its current state (copy)
         for node in self.nodes:
-            node._prev_state = node.state().model_copy()
+            node._prev_state = node.state().model_copy(deep=True)
         return self
