@@ -6,6 +6,10 @@ from ..mutations import apply_mutation, get_mutations, StateMutation, MutationVa
 class NestedModel(BaseModel):
     nested_field: str
 
+class PersonModel(BaseModel):
+    name: str
+    age: int
+
 class ComplexModel(BaseModel):
     name: str
     age: int
@@ -178,6 +182,35 @@ class TestValidateMutation(unittest.TestCase):
             new_value=create_mutation_value("twenty-six")  # Invalid type for age
         )
         self.assertFalse(validate_mutation(self.model, mutation))
+
+class TestListOfPersons(unittest.TestCase):
+    
+    def setUp(self):
+        self.old_list = [
+            PersonModel(name="Alice", age=30),
+            PersonModel(name="Bob", age=25),
+            PersonModel(name="Charlie", age=35)
+        ]
+        self.new_list = [
+            PersonModel(name="Alice", age=31),
+            PersonModel(name="Bob", age=26),
+            PersonModel(name="David", age=28)
+        ]
+    
+    def test_get_mutations_for_list_of_persons(self):
+        mutations = get_mutations(self.old_list, self.new_list)
+        self.assertEqual(len(mutations), 1)
+        self.assertEqual(mutations[0].path, [])
+    
+    def test_apply_mutation_for_list_of_persons(self):
+        mutations = get_mutations(self.old_list, self.new_list)
+        result = apply_mutation(self.old_list, mutations[0])
+        
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result[0].name, "Alice")
+        self.assertEqual(result[0].age, 31)
+        self.assertEqual(result[2].name, "David")
+        self.assertEqual(result[2].age, 28)
 
 if __name__ == '__main__':
     unittest.main()
