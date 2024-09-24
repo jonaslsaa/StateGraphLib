@@ -29,6 +29,8 @@ def nodeset_get_notified(nodes: Set[StateNode]):
     '''
     return {node for node in nodes if node._notified}
 
+TStateNode = TypeVar("TStateNode", bound=StateNode)
+
 class StateGraph:
     def __init__(self):
         self.nodes: Set[StateNode] = set()
@@ -75,11 +77,11 @@ class StateGraph:
         '''
         Notifies all nodes. This is useful when initializing a new graph.
         '''
-        for root in self.nodes:
-            root.notify()
+        for node in self.nodes:
+            node.notify()
         return self
     
-    def get_node(self, node_class: Type[StateNode]) -> Union[StateNode, None]:
+    def get_node(self, node_class: Type[TStateNode]) -> Union[TStateNode, None]:
         '''
         Returns the first node found of the given class.
         '''
@@ -88,13 +90,13 @@ class StateGraph:
                 return node
         return None
 
-    def get_nodes(self, node_class: Type[StateNode]) -> List[StateNode]:
+    def get_nodes(self, node_class: Type[TStateNode]) -> List[TStateNode]:
         '''
         Returns a list of nodes of the given class.
         '''
         return [node for node in self.nodes if isinstance(node, node_class)]
         
-    def next_batch(self):
+    def next_batch(self, auto_finish_cycle: bool = True) -> Set[StateNode]:
             '''
             Returns the next batch of nodes that can be processed, these nodes will not be dependent on each other (can be processed in parallel).
             It will find the highest non-dependent notified nodes and return them. This ensures that changes are propagated in the correct order, parent nodes are processed before children.
@@ -112,4 +114,15 @@ class StateGraph:
                 if not has_higher_notified_ancestor(node):
                     highest_notified.add(node)
             
+            
+            # If no more nodes can be processed, finish the cycle if auto_finish_cycle is True
+            if auto_finish_cycle and len(highest_notified) == 0:
+                self.finish_cycle()
+            
             return highest_notified
+
+    def finish_cycle(self):
+        # Set all nodes's _prev_state to its current state (copy)
+        for node in self.nodes:
+            node._prev_state = node.state().model_copy()
+        return self
