@@ -3,6 +3,8 @@ from pydantic import BaseModel, create_model
 import pydantic
 import json
 
+from pydantic_core import to_jsonable_python
+
 # Requries pydantic >= 2
 if pydantic.__version__.startswith('1.') or pydantic.__version__.startswith('0.'):
     print("[WARNING] It seems you are using pydantic <2.0. Please upgrade to the latest version.")
@@ -20,17 +22,24 @@ class StateMutation(BaseModel):
     old_value: MutationValue
     new_value: MutationValue
 
+def _jsondump(value: Any) -> str:
+    '''
+    Serialize a value to a JSON string.
+    '''
+    return json.dumps(to_jsonable_python(value))
+
 def _serialize(value: Any) -> str:
     '''
     Serialize a value to a string.
     '''
+    
     if isinstance(value, set):
-        return json.dumps(list(value))
+        return _jsondump(list(value))
     if isinstance(value, frozenset):
-        return json.dumps(list(value))
+        return _jsondump(list(value))
     if isinstance(value, BaseModel):
         return value.model_dump_json()
-    return json.dumps(value)
+    return _jsondump(value)
 
 def _deserialize(mutation_value: MutationValue) -> Any:
     '''
@@ -85,7 +94,15 @@ def apply_mutation(old_value: BaseModel, mutation: StateMutation, ignore_old_val
         raise ValueError(f"Old value {mutation.old_value.value} does not match the current value {current_value}")
     
     # Set the new value
-    setattr(value, mutation.path[-1], _deserialize(mutation.new_value))
+    new_value = _deserialize(mutation.new_value)
+    
+    # If the new value is a list of dictionaries, convert them back to the original model type
+    if isinstance(new_value, list) and all(isinstance(item, dict) for item in new_value):
+        model_class = type(current_value[0]) if current_value else None
+        if model_class and issubclass(model_class, BaseModel):
+            new_value = [model_class(**item) for item in new_value]
+    
+    setattr(value, mutation.path[-1], new_value)
     
     return old_value  # Return the modified model
 
@@ -93,6 +110,9 @@ def get_mutations(old_model: BaseModel, new_model: BaseModel, path: List[str] = 
     '''
     Get the mutations that need to be applied to old_model to get to new_model.
     '''
+    # Assert models are subclasses of BaseModel
+    assert issubclass(old_model.__class__, BaseModel), "old_model must be a subclass of BaseModel"
+    assert issubclass(new_model.__class__, BaseModel), "new_model must be a subclass of BaseModel"
     mutations: List[StateMutation] = []
     for field in new_model.model_fields:
         new_value = getattr(new_model, field)
