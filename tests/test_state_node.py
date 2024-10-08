@@ -2,6 +2,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 from ..StateNode import StateNode, pydantic_deep_eq
 from ..example import CustomStateNodeWithInitArgs
+from ..fields import PrivateField
 
 def create_test_node_class():
     class TestNode(StateNode):
@@ -173,6 +174,7 @@ def test_has_changed():
             value: int = 0
             nested: NestedState = NestedState()
             list_value: list = [1, 2, 3]
+            private_value: int = PrivateField(default=0)
 
         def on_notify(self):
             pass
@@ -223,6 +225,88 @@ def test_has_changed():
     assert not node.has_changed("value")
     assert not node.has_changed(["nested", "a"])
     assert not node.has_changed("list_value")
+
+    # Test private field change
+    node = TestNode.from_defaults()
+    node.state().private_value = 1
+    notify_and_process()
+    assert not node.has_changed("private_value")
+
+def test_private_field():
+    class TestNodeWithPrivate(StateNode):
+        class State(BaseModel):
+            public_value: int = 0
+            private_value: int = PrivateField(default=0)
+
+        def on_notify(self):
+            self.state().public_value += 1
+            self.state().private_value += 1
+
+    node = TestNodeWithPrivate.from_defaults()
+    child = TestNodeWithPrivate.from_defaults()
+    node._children.add(child)
+    child._parents.add(node)
+
+    # Change both public and private values
+    node.state().public_value = 1
+    node.state().private_value = 1
+    node.apply_change()
+
+    # Child should be notified
+    assert child._notified
+
+    # Reset notification
+    child._notified = False
+
+    # Change only private value
+    node.state().private_value = 2
+    node.apply_change()
+
+    # Child should not be notified
+    assert not child._notified
+
+    # Verify that private value change doesn't trigger notification in process
+    node.notify()
+    node.process()
+
+    # Child should be notified (due to public_value change in on_notify)
+    assert child._notified
+
+    # Verify that has_changed doesn't detect private field changes
+    assert node.has_changed("public_value")
+    assert not node.has_changed("private_value")
+
+def test_private_field_without_default():
+    class TestNodeWithPrivateNoDefault(StateNode):
+        class State(BaseModel):
+            public_value: int = 0
+            private_value: int = PrivateField()
+
+        def on_notify(self):
+            self.state().public_value += 1
+            self.state().private_value += 1
+
+    # Test initialization with private field value
+    node = TestNodeWithPrivateNoDefault.from_dict({"public_value": 0, "private_value": 5})
+    assert node.state().private_value == 5
+
+    # Test that private field changes don't trigger notifications
+    child = TestNodeWithPrivateNoDefault.from_dict({"public_value": 0, "private_value": 0})
+    node._children.add(child)
+    child._parents.add(node)
+
+    node.state().private_value = 10
+    node.apply_change()
+    assert not child._notified
+
+    # Test that public field changes do trigger notifications
+    node.state().public_value = 1
+    node.apply_change()
+    assert child._notified
+
+    # Verify that has_changed doesn't detect private field changes
+    assert node.has_changed("public_value")
+    assert not node.has_changed("private_value")
 
 if __name__ == "__main__":
     pytest.main()
