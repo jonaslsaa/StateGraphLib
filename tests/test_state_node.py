@@ -173,7 +173,6 @@ def test_has_changed():
             value: int = 0
             nested: NestedState = NestedState()
             list_value: list = [1, 2, 3]
-            _private: int = 0
 
         def on_notify(self):
             pass
@@ -224,76 +223,6 @@ def test_has_changed():
     assert not node.has_changed("value")
     assert not node.has_changed(["nested", "a"])
     assert not node.has_changed("list_value")
-
-    # Test private variable change (should not notify children)
-    node = TestNode.from_defaults()
-    node.state()._private = 1
-    notify_and_process()
-    assert not node.has_changed("_private")
-
-def test_private_variable_notification():
-    class ParentNode(StateNode):
-        class State(BaseModel):
-            public_value: int = 0
-            _private_value: int = 0
-
-        def on_notify(self):
-            self.state().public_value += 1
-            self.state()._private_value += 1
-
-    class ChildNode(StateNode):
-        class State(BaseModel):
-            value: int = 0
-
-        def on_notify(self):
-            parent = self.get_ancestor(ParentNode)
-            self.state().value = parent.state().public_value
-
-    parent = ParentNode.from_defaults()
-    child = ChildNode.from_defaults()
-    parent._children.add(child)
-    child._parents.add(parent)
-
-    parent.notify()
-    parent.process()
-    child.process()
-
-    assert parent.state().public_value == 1
-    assert parent.state()._private_value == 1
-    assert child.state().value == 1
-
-    # Change only the private value
-    parent.state()._private_value = 10
-    parent.apply_change()
-    child.process()
-
-    # Child should not be notified of the private value change
-    assert parent.state().public_value == 1
-    assert parent.state()._private_value == 10
-    assert child.state().value == 1
-
-def test_has_changed_with_private_variables():
-    class TestNode(StateNode):
-        class State(BaseModel):
-            public_value: int = 0
-            _private_value: int = 0
-
-        def on_notify(self):
-            pass
-
-    node = TestNode.from_defaults()
-    
-    # Change public value
-    node.state().public_value = 1
-    node.notify()
-    node.process()
-    assert node.has_changed("public_value")
-    
-    # Change private value
-    node.state()._private_value = 1
-    node.notify()
-    node.process()
-    assert not node.has_changed("_private_value")
 
 if __name__ == "__main__":
     pytest.main()

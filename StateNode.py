@@ -12,9 +12,7 @@ if TYPE_CHECKING:
 from .common import NodeNotFoundError
 
 def pydantic_deep_eq(a: BaseModel, b: BaseModel) -> bool:
-    a_dict = {k: v for k, v in a.model_dump().items() if not k.startswith('_')}
-    b_dict = {k: v for k, v in b.model_dump().items() if not k.startswith('_')}
-    return a_dict == b_dict
+    return a.model_dump() == b.model_dump()
 
 class StateNode(ABC):
     
@@ -75,11 +73,9 @@ class StateNode(ABC):
         if notification_mode == self.SetStateMode.NOTIFY_CHILDREN:
             # Notify children if the state has changed
             self._notify_children()
-        elif notification_mode == self.SetStateMode.DEEP_COMPARE:
-            # Compare states, ignoring private variables
-            if not pydantic_deep_eq(self._state, model_copy):
-                # Notify children if the state has changed
-                self._notify_children()
+        elif notification_mode == self.SetStateMode.DEEP_COMPARE and not pydantic_deep_eq(self._state, model_copy):
+            # Notify children if the state has changed
+            self._notify_children()
         return self
     
     def prev_state(self) -> State:
@@ -137,9 +133,6 @@ class StateNode(ABC):
             state_property = state_property.split(".")
         # Traverse the state to get the value
         if isinstance(state_property, list):
-            # Ignore private variables
-            if state_property[0].startswith('_'):
-                return False
             state = self.state()
             prev_state = self.prev_state()
             for prop in state_property:
