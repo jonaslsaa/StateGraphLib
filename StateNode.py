@@ -1,10 +1,13 @@
 from collections import defaultdict
 from enum import Enum
-from typing import Any, Callable, List, Dict, Literal, TypeVar, Union, Set
+from typing import Any, Callable, List, Dict, Literal, TypeVar, Union, Set, TYPE_CHECKING
 from abc import ABC, abstractmethod
 from pydantic import BaseModel
-from fastapi.encoders import jsonable_encoder
+from .encoders import jsonable_encoder
 from collections import deque
+
+if TYPE_CHECKING:
+    from .StateNode import StateNode
 
 from .common import NodeNotFoundError
 
@@ -31,8 +34,8 @@ class StateNode(ABC):
         '''
         self._parents: Set[StateNode] = set()
         self._children: Set[StateNode] = set()
-        self._state: self.State = None
-        self._prev_state: self.State = None # prev_state is used for children nodes to detect spesific changes.
+        self._state: StateNode.State = None
+        self._prev_state: StateNode.State = None # prev_state is used for children nodes to detect spesific changes.
         self._notified: bool = False
         self.post_init()
     
@@ -117,7 +120,7 @@ class StateNode(ABC):
             return jsonable_encoder(a) != jsonable_encoder(b)
         
         if callable(state_property):
-            getter: Callable[[self.State], Any] = state_property
+            getter: Callable[[StateNode.State], Any] = state_property
             # Get the current and previous values
             current_value = getter(self.state())
             if self.prev_state() is None:
