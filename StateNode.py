@@ -12,7 +12,10 @@ if TYPE_CHECKING:
 from .common import NodeNotFoundError
 
 def pydantic_deep_eq(a: BaseModel, b: BaseModel) -> bool:
-    return a.model_dump() == b.model_dump()
+    # Try to get _PRIVATE attribute
+    private_a = getattr(a, "_PRIVATE", [])
+    private_b = getattr(b, "_PRIVATE", [])
+    return a.model_dump(exclude=private_a) == b.model_dump(exclude=private_b)
 
 class StateNode(ABC):
     
@@ -73,7 +76,8 @@ class StateNode(ABC):
         if notification_mode == self.SetStateMode.NOTIFY_CHILDREN:
             # Notify children if the state has changed
             self._notify_children()
-        elif notification_mode == self.SetStateMode.DEEP_COMPARE and not pydantic_deep_eq(self._state, model_copy):
+        elif notification_mode == self.SetStateMode.DEEP_COMPARE \
+                and not pydantic_deep_eq(self._state, model_copy):
             # Notify children if the state has changed
             self._notify_children()
         return self
@@ -190,13 +194,18 @@ class StateNode(ABC):
         for child in self._children:
             child.notify()
     
-    def apply_change(self):
+    def apply_change(self, force_notify: bool = False):
         '''
         This method should be called when the state of the node has been manually changed. It notifies children and validates the state.
         :raises ValidationError if the state is invalid.
         '''
         self.validate_state()
+        # Check if the state has changed
+        if not force_notify and pydantic_deep_eq(self._state, self._prev_state):
+            return False
+        # If so, notify children
         self._notify_children()
+        return True
     
     T = TypeVar('T')
     def get_ancestors(self, cls: T, return_only_first: bool = False) -> Union[T, List[T]]:

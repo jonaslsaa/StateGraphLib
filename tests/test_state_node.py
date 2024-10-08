@@ -174,6 +174,8 @@ def test_has_changed():
             value: int = 0
             nested: NestedState = NestedState()
             list_value: list = [1, 2, 3]
+            private_value: int = 0
+            _PRIVATE = ["private_value"]
 
         def on_notify(self):
             pass
