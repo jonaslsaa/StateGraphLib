@@ -141,8 +141,10 @@ class TestGraphSerializer(unittest.TestCase):
         self.assertEqual(ticket_node.state().content, 'Hello, can you help me?')
         # Change the state of a node to create a prev_state
         ticket_node.state().content = "Updated content"
-        ticket_node.apply_change()
+        did_change = ticket_node.apply_change()
+        self.assertTrue(did_change)
         self.assertEqual(ticket_node.state().content, "Updated content")
+        self.assertEqual(ticket_node._prev_state.content, "Hello, can you help me?")
         # Process the node
         ticket_node.notify()
         ticket_node.process() # Previous state is set here
