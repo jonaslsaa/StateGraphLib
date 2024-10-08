@@ -1,5 +1,6 @@
+from typing import List, Literal
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, ConfigDict
 from ..StateNode import StateNode, pydantic_deep_eq
 from ..example import CustomStateNodeWithInitArgs
 
@@ -181,6 +182,14 @@ def test_has_changed():
         # This will notify and process the node, important to update the prev_state
         node.notify()
         node.process()
+    
+    # test no change
+    node = TestNode.from_defaults()
+    assert not node.has_changed("value")
+    assert not node.has_changed(["nested", "a"])
+    assert not node.has_changed("list_value")
+    assert not node.has_changed(lambda s: s.value)
+    assert not node.has_changed("nested.a")
 
     # Test simple property change
     node = TestNode.from_defaults()
@@ -224,5 +233,46 @@ def test_has_changed():
     assert not node.has_changed(["nested", "a"])
     assert not node.has_changed("list_value")
 
+def test_comparing_transactions():
+    class Transaction(BaseModel):
+        id: str | int
+        type: Literal["Create", "Correspond", "Comment"]
+        content: str
+        timestamp: str
+        creator: str
+        
+        model_config = ConfigDict(coerce_numbers_to_str=True)
+        
+        def __eq__(self, other):
+            return self.id == other.id
+        
+        def __hash__(self):
+            return hash(self.id)
+    
+    class TicketNode(StateNode):
+        class State(BaseModel):
+            transactions: List[Transaction] = []
+        
+        def on_notify(self):
+            pass
+        
+    node = TicketNode.from_defaults()
+    node.state().transactions = [
+        Transaction(id="1", type="Create", content="Hello", timestamp="2021-01-01", creator="Alice"),
+        Transaction(id="2", type="Correspond", content="Hi", timestamp="2021-01-02", creator="Bob")
+    ]
+    node._prev_state = node.state().model_copy(deep=True) # Copy the state to prev_state to simulate no change
+    
+    # Test no change
+    node.notify()
+    node.process()
+    assert not node.has_changed("transactions")
+    
+    # Test change
+    node.state().transactions[0].content = "Hello, world!"
+    node.notify()
+    node.process()
+    assert node.has_changed("transactions")
+    
 if __name__ == "__main__":
     pytest.main()

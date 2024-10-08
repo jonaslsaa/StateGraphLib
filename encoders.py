@@ -25,9 +25,7 @@ def generate_encoders_by_class_tuples(
         encoders_by_class_tuples[encoder] += (type_,)
     return encoders_by_class_tuples
 
-
 encoders_by_class_tuples = generate_encoders_by_class_tuples(ENCODERS_BY_TYPE)
-
 
 def jsonable_encoder(
     obj: Any,
@@ -53,10 +51,13 @@ def jsonable_encoder(
     if exclude is not None and not isinstance(exclude, (set, dict)):
         exclude = set(exclude)
     if isinstance(obj, BaseModel):
-        encoder = getattr(obj.__config__, "json_encoders", {})
+        try:
+            encoder = getattr(obj.__config__, "json_encoders", {})
+        except AttributeError:
+            encoder = {}
         if custom_encoder:
             encoder.update(custom_encoder)
-        obj_dict = obj.dict(
+        obj_dict = obj.model_dump(
             include=include,
             exclude=exclude,
             by_alias=by_alias,
