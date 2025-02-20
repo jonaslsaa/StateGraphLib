@@ -1,5 +1,5 @@
 from json import JSONDecodeError
-from typing import Any, Dict, Set, Tuple, Type
+from typing import Any, Callable, Dict, Set, Tuple, Type
 from pydantic import BaseModel
 from pydantic_core import ValidationError
 
@@ -70,12 +70,15 @@ class GraphSerializer:
         return SerializedGraph(nodes=nodes, connections=connections)
     
     @staticmethod
-    def _id_to_nodes(nodes: Set[SerializedNode],
+    def _serialized_to_nodes(nodes: Set[SerializedNode],
                     node_classes: Dict[str, Type[StateNode]],
                     node_init_args: MappedArgumentsOrArgs,
-                    reinitialize_on_error: bool) -> Dict[StrOrInt, StateNode]:       
+                    reinitialize_on_error: bool,
+                    _on_error_callback: Callable[[str, Exception], None]) -> Dict[StrOrInt, StateNode]:
+        
         id_to_node: Dict[StrOrInt, StateNode] = {}
         for serialized_node in nodes:
+                
             # Try to find the class for the node
             try:
                 node_class = node_classes[serialized_node.class_name]
@@ -89,30 +92,34 @@ class GraphSerializer:
             else:
                 # Otherwise, just use the init args, might be just a empty dict
                 current_node_init_args = node_init_args
+                
+            # Dynamically define a function to handle errors
+            def handle_on_error(exception: Exception):
+                # Check if we should raise or silently reinitialize the node
+                if not reinitialize_on_error:
+                    raise exception
+                
+                # Reinitialize the node
+                node = node_class.from_defaults(current_node_init_args)
+                
+                # If a callback is provided, call it
+                if _on_error_callback is not None:
+                    _on_error_callback(serialized_node.id, exception)
+                # Notify the node as it has been reinitialized
+                # From the perspective of the node, all its parents have non-default states, so we'll need to notify it
+                node.notify()
+                return node
             
             # Check if the version matches
             if node_class.VERSION != serialized_node.version:
-                if not reinitialize_on_error:
-                    raise VersionMismatchError(f"Version mismatch for node {serialized_node.id}. Expected {node_class.VERSION}, got {serialized_node.version}")
-                # Reinitialize the node
-                node = node_class.from_defaults(current_node_init_args)
-                # Notify the node that it has been reinitialized
-                node.notify()
-                id_to_node[serialized_node.id] = node
-                continue
+                id_to_node[serialized_node.id] = handle_on_error(VersionMismatchError(f"Version mismatch for node {serialized_node.id}. Expected {node_class.VERSION}, got {serialized_node.version}"))
+                continue # Skip as we don't want to try to deserialize the node
             
             # Deserialize the node
             try:
                 node = GraphSerializer._deserialize_node(node_class, serialized_node, current_node_init_args)
             except DeserializationError as e:
-                # If the node cannot be deserialized, we can either skip it or reinitialize it
-                if not reinitialize_on_error:
-                    # Re-raise the error
-                    raise e
-                # Reinitialize the node
-                node = node_class.from_defaults(current_node_init_args)
-                # From the perspective of the node, all its parents have non-default states, so we'll need to notify it
-                node.notify()
+                node = handle_on_error(e)
                 
             # Add the node to the dictionary
             id_to_node[serialized_node.id] = node
@@ -122,14 +129,15 @@ class GraphSerializer:
     def deserialize(serialized_graph: SerializedGraph,
                     node_classes: Set[Type[StateNode]],
                     node_init_args: MappedArgumentsOrArgs = {},
-                    reinitialize_on_error: bool = False) -> StateGraph:
+                    reinitialize_on_error: bool = False,
+                    on_error_callback: Callable[[str, Exception], None] = None) -> StateGraph:
         graph = StateGraph()
         
         # Map the node classes to their names
         node_classes_dict = {node_class.__name__: node_class for node_class in node_classes}
         
         # Convert the serialized nodes to actual nodes
-        id_to_node = GraphSerializer._id_to_nodes(serialized_graph.nodes, node_classes_dict, node_init_args, reinitialize_on_error)
+        id_to_node = GraphSerializer._serialized_to_nodes(serialized_graph.nodes, node_classes_dict, node_init_args, reinitialize_on_error, on_error_callback)
     
         # Connect the nodes
         GraphSerializer.connect_nodes(graph, serialized_graph, id_to_node)
