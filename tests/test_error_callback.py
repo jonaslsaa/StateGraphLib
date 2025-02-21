@@ -388,5 +388,36 @@ def test_callback_on_prev_state_error(callback_collector):
     # Prev state should be reset to current state after reinitialization
     assert node.prev_state().text == "callback test"
 
+def test_callback_not_triggered_on_valid_graph(callback_collector):
+    calls, callback = callback_collector
+    
+    # Create valid nodes
+    valid_node = CallbackTestNode.from_defaults()
+    serialized_node = SerializedNode(
+        id="valid-node",
+        class_name="CallbackTestNode",
+        version="1.0.0",
+        serialized_state=valid_node.state().model_dump_json(),
+        prev_serialized_state=valid_node.prev_state().model_dump_json(),
+        notified=False
+    )
+    
+    # Create valid graph
+    valid_graph = SerializedGraph(
+        nodes={serialized_node},
+        connections=set()
+    )
+    
+    # Deserialize with error handling enabled
+    GraphSerializer.deserialize(
+        valid_graph,
+        node_classes={CallbackTestNode},
+        reinitialize_on_error=True,
+        on_error_callback=callback
+    )
+    
+    # Verify no errors were recorded
+    assert len(calls) == 0
+
 if __name__ == "__main__":
     pytest.main()
