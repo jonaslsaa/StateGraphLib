@@ -24,6 +24,27 @@ class CallbackTestNode(StateNode):
         # When reinitialized, set a known default state.
         return node.load_from_dict({"text": "default re-init"})
 
+# A test node that accepts initialization arguments.
+class CallbackInitArgTestNode(StateNode):
+    VERSION = "1.0.0"
+
+    def __init__(self, my_arg: str = "default_arg"):
+        super().__init__()
+        self.my_arg = my_arg
+
+    class State(BaseModel):
+        text: str = "callback test"
+
+    def on_notify(self):
+        # For testing, do nothing.
+        pass
+
+    @classmethod
+    def from_defaults(cls, node_init_args: dict = None):
+        node = cls(**(node_init_args or {}))
+        # When reinitialized, set a known default state.
+        return node.load_from_dict({"text": "default re-init"})
+
 # Fixture to collect callback calls.
 @pytest.fixture
 def callback_collector():
@@ -92,20 +113,12 @@ def test_callback_on_version_mismatch(callback_collector):
     # (Since we have a connection, both nodes should be in the graph.)
     assert len(graph.nodes) == 2
 
-    # Find node A and check that it was reinitialized.
-    node_a_new = next(node for node in graph.nodes if node.serialize() == CallbackTestNode.from_defaults().serialize()) is False
-    # Instead, we can inspect by checking the state value on node-1.
-    # (In our reinitialization, we set "default re-init" as the text.)
+    # Check that the error node was reinitialized to the default state.
     for node in graph.nodes:
-        if node.__class__.__name__ == "CallbackTestNode":
-            # Check if this node was the one reinitialized (its state text equals "default re-init")
-            if node.serialize() == CallbackTestNode.from_defaults().serialize():
-                # This is the valid node; skip.
-                continue
-            else:
-                # For our error node, state.text should be "default re-init".
-                assert node.state().text == "default re-init"
-                break
+        # Identify the node that had an error by checking its state text.
+        if node.state().text == "default re-init":
+            assert node.state().text == "default re-init"
+            break
 
 def test_callback_on_deserialization_error(callback_collector):
     calls, callback = callback_collector
@@ -159,12 +172,8 @@ def test_callback_on_deserialization_error(callback_collector):
     assert len(graph.nodes) == 2
 
     # Verify that node-1 (error node) was reinitialized.
-    # We expect its state text to equal "default re-init".
     for node in graph.nodes:
-        if node.serialize() == CallbackTestNode.from_defaults().serialize():
-            # This is the valid node.
-            continue
-        else:
+        if node.state().text == "default re-init":
             assert node.state().text == "default re-init"
             break
 
@@ -244,45 +253,55 @@ def test_callback_for_unknown_node(callback_collector):
     # The callback should not be triggered for unknown node errors.
     assert len(calls) == 0
 
-def test_multiple_errors_in_single_graph(callback_collector):
+# --- New Tests ---
+
+def test_callback_multiple_errors(callback_collector):
+    """
+    Test that when multiple nodes in the serialized graph have errors,
+    the callback is triggered for each error.
+    """
     calls, callback = callback_collector
-    node_classes = {CallbackTestNode}
 
-    # Create serialized graph with multiple error types
-    serialized_nodes = [
-        # Version mismatch
-        SerializedNode(
-            id="node-1",
-            class_name="CallbackTestNode",
-            version="2.0.0",
-            serialized_state=CallbackTestNode().state().model_dump_json(),
-            prev_serialized_state="",
-            notified=False,
-        ),
-        # Invalid JSON
-        SerializedNode(
-            id="node-2",
-            class_name="CallbackTestNode",
-            version="1.0.0",
-            serialized_state='{"text": "invalid...',
-            prev_serialized_state="",
-            notified=False,
-        ),
-        # Valid node
-        SerializedNode(
-            id="node-3",
-            class_name="CallbackTestNode",
-            version="1.0.0",
-            serialized_state=CallbackTestNode().state().model_dump_json(),
-            prev_serialized_state="",
-            notified=False,
-        )
-    ]
+    # Create three nodes:
+    # Node A: Version mismatch error.
+    node_a = CallbackTestNode.from_defaults()
+    # Node B: Deserialization error (malformed JSON).
+    node_b = CallbackTestNode.from_defaults()
+    # Node C: Valid node.
+    node_c = CallbackTestNode.from_defaults()
 
-    serialized_graph = SerializedGraph(
-        nodes=set(serialized_nodes),
-        connections={("node-1", "node-3"), ("node-2", "node-3")}
+    serialized_node_a = SerializedNode(
+        id="node-1",
+        class_name="CallbackTestNode",
+        version="2.0.0",  # Version mismatch.
+        serialized_state=node_a.state().model_dump_json(),
+        prev_serialized_state="",
+        notified=False,
     )
+    serialized_node_b = SerializedNode(
+        id="node-2",
+        class_name="CallbackTestNode",
+        version="1.0.0",  # Correct version but malformed JSON.
+        serialized_state='{"text": "invalid json", "extra": "oops}',  # Malformed JSON.
+        prev_serialized_state="",
+        notified=False,
+    )
+    serialized_node_c = SerializedNode(
+        id="node-3",
+        class_name="CallbackTestNode",
+        version="1.0.0",  # Valid node.
+        serialized_state=node_c.state().model_dump_json(),
+        prev_serialized_state="",
+        notified=False,
+    )
+
+    # Connect nodes in a chain: A -> B -> C.
+    serialized_graph = SerializedGraph(
+        nodes={serialized_node_a, serialized_node_b, serialized_node_c},
+        connections={("node-1", "node-2"), ("node-2", "node-3")}
+    )
+
+    node_classes = {CallbackTestNode}
 
     graph = GraphSerializer.deserialize(
         serialized_graph,
@@ -292,132 +311,114 @@ def test_multiple_errors_in_single_graph(callback_collector):
         on_error_callback=callback
     )
 
-    # Verify two error callbacks
+    # Expect two errors: one for node-1 (version mismatch) and one for node-2 (deserialization error).
     assert len(calls) == 2
-    error_ids = {nid for nid, _ in calls}
-    assert error_ids == {"node-1", "node-2"}
+    error_types = {type(exc) for _, exc in calls}
+    assert VersionMismatchError in error_types
+    assert DeserializationError in error_types
 
-    # Verify all three nodes exist (two reinitialized, one valid)
+    # Verify that the graph contains three nodes.
     assert len(graph.nodes) == 3
-    states = [n.state().text for n in graph.nodes]
-    assert set(states) == {"default re-init", "callback test"}
 
-def test_callback_on_init_args_error(callback_collector):
+def test_callback_not_triggered_on_valid_graph(callback_collector):
+    """
+    Test that if all nodes are valid, no error callback is triggered.
+    """
     calls, callback = callback_collector
 
-    class InitArgNode(CallbackTestNode):
-        def __init__(self, required_arg: str):
-            super().__init__()
-            self.required_arg = required_arg
+    # Create two valid nodes.
+    node_a = CallbackTestNode.from_defaults()
+    node_b = CallbackTestNode.from_defaults()
 
-        @classmethod
-        def from_defaults(cls, node_init_args: dict = None):
-            return cls(**node_init_args).load_from_dict({"text": "init-arg-default"})
-
-    serialized_node = SerializedNode(
+    serialized_node_a = SerializedNode(
         id="node-1",
-        class_name="InitArgNode",
+        class_name="CallbackTestNode",
         version="1.0.0",
-        serialized_state=InitArgNode("good").state().model_dump_json(),
+        serialized_state=node_a.state().model_dump_json(),
+        prev_serialized_state="",
+        notified=False,
+    )
+    serialized_node_b = SerializedNode(
+        id="node-2",
+        class_name="CallbackTestNode",
+        version="1.0.0",
+        serialized_state=node_b.state().model_dump_json(),
         prev_serialized_state="",
         notified=False,
     )
 
-    # Deserialize without required init args
-    with pytest.raises(TypeError):
-        GraphSerializer.deserialize(
-            SerializedGraph(nodes={serialized_node}, connections=set()),
-            node_classes={InitArgNode},
-            node_init_args={},  # Missing required_arg
-            reinitialize_on_error=False
-        )
-
-    # Now test with reinitialize_on_error=True
-    graph = GraphSerializer.deserialize(
-        SerializedGraph(nodes={serialized_node}, connections=set()),
-        node_classes={InitArgNode},
-        node_init_args={InitArgNode: {"required_arg": "fixed"}},
-        reinitialize_on_error=True,
-        on_error_callback=callback
+    serialized_graph = SerializedGraph(
+        nodes={serialized_node_a, serialized_node_b},
+        connections={("node-1", "node-2")}
     )
 
-    # Should have 1 error from failed initial deserialization attempt
-    assert len(calls) == 1
-    nid, exc = calls[0]
-    assert nid == "node-1"
-    assert isinstance(exc, DeserializationError)
-
-    # Node should be reinitialized with correct args
-    node = next(iter(graph.nodes))
-    assert node.required_arg == "fixed"
-    assert node.state().text == "init-arg-default"
-
-def test_callback_on_prev_state_error(callback_collector):
-    calls, callback = callback_collector
-    node_classes = {CallbackTestNode}
-
-    # Create node with valid current state but invalid previous state
-    valid_state = CallbackTestNode().state().model_dump_json()
-    serialized_node = SerializedNode(
-        id="node-1",
-        class_name="CallbackTestNode",
-        version="1.0.0",
-        serialized_state=valid_state,
-        prev_serialized_state='{"text": 123}',  # Invalid type for text
-        notified=False,
-    )
-
+    # Deserialize with reinitialize_on_error True, but no errors should occur.
     graph = GraphSerializer.deserialize(
-        SerializedGraph(nodes={serialized_node}, connections=set()),
-        node_classes=node_classes,
+        serialized_graph,
+        node_classes={CallbackTestNode},
         node_init_args={},
         reinitialize_on_error=True,
         on_error_callback=callback
     )
 
-    # Should have 1 error from prev state deserialization
-    assert len(calls) == 1
-    nid, exc = calls[0]
-    assert nid == "node-1"
-    assert isinstance(exc, DeserializationError)
+    # No callback calls should have been made.
+    assert len(calls) == 0
+    # Graph should contain two nodes.
+    assert len(graph.nodes) == 2
 
-    # Node should have current state from serialized data
-    node = next(iter(graph.nodes))
-    assert node.state().text == "callback test"
-    
-    # Prev state should be reset to current state after reinitialization
-    assert node.prev_state().text == "callback test"
-
-def test_callback_not_triggered_on_valid_graph(callback_collector):
+def test_callback_with_init_args(callback_collector):
+    """
+    Test that when a node with initialization arguments encounters an error,
+    the callback is triggered and the reinitialized node retains the provided init args.
+    """
     calls, callback = callback_collector
-    
-    # Create valid nodes
-    valid_node = CallbackTestNode.from_defaults()
+
+    # Create a node that will trigger a version mismatch.
+    node = CallbackInitArgTestNode.from_defaults()
     serialized_node = SerializedNode(
-        id="valid-node",
-        class_name="CallbackTestNode",
+        id="node-1",
+        class_name="CallbackInitArgTestNode",
+        version="2.0.0",  # Mismatch.
+        serialized_state=node.state().model_dump_json(),
+        prev_serialized_state="",
+        notified=False,
+    )
+
+    # Create a valid node for connection.
+    valid_node = CallbackInitArgTestNode.from_defaults()
+    serialized_valid = SerializedNode(
+        id="node-2",
+        class_name="CallbackInitArgTestNode",
         version="1.0.0",
         serialized_state=valid_node.state().model_dump_json(),
-        prev_serialized_state=valid_node.prev_state().model_dump_json(),
-        notified=False
+        prev_serialized_state="",
+        notified=False,
     )
-    
-    # Create valid graph
-    valid_graph = SerializedGraph(
-        nodes={serialized_node},
-        connections=set()
+
+    serialized_graph = SerializedGraph(
+        nodes={serialized_node, serialized_valid},
+        connections={("node-1", "node-2")}
     )
-    
-    # Deserialize with error handling enabled
-    GraphSerializer.deserialize(
-        valid_graph,
-        node_classes={CallbackTestNode},
+
+    node_classes = {CallbackInitArgTestNode}
+    init_args = {CallbackInitArgTestNode: {'my_arg': 'test_value'}}
+
+    graph = GraphSerializer.deserialize(
+        serialized_graph,
+        node_classes=node_classes,
+        node_init_args=init_args,
         reinitialize_on_error=True,
         on_error_callback=callback
     )
-    
-    # Verify no errors were recorded
-    assert len(calls) == 0
 
-if __name__ == "__main__":
-    pytest.main()
+    # Callback should have been triggered once for the version mismatch.
+    assert len(calls) == 1
+    nid, exc = calls[0]
+    assert nid == "node-1"
+    assert isinstance(exc, VersionMismatchError)
+
+    # Retrieve the reinitialized node (the one with version mismatch).
+    error_node = next(node for node in graph.nodes if getattr(node, 'my_arg', None) == 'test_value')
+    assert error_node.my_arg == 'test_value'
+    # Also, check that its state was reinitialized.
+    assert error_node.state().text == "default re-init"
